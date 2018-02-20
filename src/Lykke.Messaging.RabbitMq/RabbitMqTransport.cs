@@ -133,18 +133,22 @@ namespace Lykke.Messaging.RabbitMq
                 throw new ObjectDisposedException("Transport is disposed");
 
             var connection = CreateConnection(true);
-            var session = new RabbitMqSession(connection, confirmedSending, (rabbitMqSession, destination, exception) =>
-            {
-                lock (m_Sessions)
-                {
-                    m_Sessions.Remove(rabbitMqSession);
-                    _log.WriteErrorAsync(
-                        nameof(RabbitMqTransport),
-                        nameof(CreateSession),
-                        $"Failed to send message to destination '{destination}' broker '{connection.Endpoint.HostName}'. Treating session as broken. ",
-                        exception);
-                }
-            });
+            var session = new RabbitMqSession(
+                _log,
+                connection,
+                confirmedSending,
+                (rabbitMqSession, destination, exception) =>
+                    {
+                        lock (m_Sessions)
+                        {
+                            m_Sessions.Remove(rabbitMqSession);
+                            _log.WriteErrorAsync(
+                                nameof(RabbitMqTransport),
+                                nameof(CreateSession),
+                                $"Failed to send message to destination '{destination}' broker '{connection.Endpoint.HostName}'. Treating session as broken. ",
+                                exception);
+                        }
+                    });
 
             connection.ConnectionShutdown += (c, reason) =>
                 {

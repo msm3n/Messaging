@@ -250,7 +250,7 @@ namespace Lykke.Messaging
                     _log.WriteInfoAsync(
                         nameof(ProcessingGroupManager),
                         nameof(ProcessResubscription),
-                        "Resubscription failed. Will retry later.");
+                        $"Resubscription failed. Will retry later: {e.Message}");
                 }
             }
 

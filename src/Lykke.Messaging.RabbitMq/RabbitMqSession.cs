@@ -1,18 +1,19 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reactive.Disposables;
 using System.Text;
-using Lykke.Messaging.Contract;
-using Lykke.Messaging.Transports;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
+using Common.Log;
+using Lykke.Messaging.Contract;
+using Lykke.Messaging.Transports;
 
 namespace Lykke.Messaging.RabbitMq
 {
     internal class RabbitMqSession : IMessagingSession
     {
+        private readonly ILog _log;
         private readonly IConnection m_Connection;
         private readonly IModel m_Model;
         private readonly CompositeDisposable m_Subscriptions = new CompositeDisposable();
@@ -22,10 +23,12 @@ namespace Lykke.Messaging.RabbitMq
         private bool m_ConfirmedSending = false;
 
         public RabbitMqSession(
+            ILog log,
             IConnection connection,
             bool confirmedSending = false,
             Action<RabbitMqSession, PublicationAddress, Exception> onSendFail = null)
         {
+            _log = log;
             m_OnSendFail = onSendFail??((s,d,e) => { });
             m_Connection = connection;
             m_Model = m_Connection.CreateModel();
@@ -178,7 +181,11 @@ namespace Lykke.Messaging.RabbitMq
                 if (basicConsumer is Consumer)
                     throw new InvalidOperationException("Attempt to subscribe for non shared destination with specific message type. It should be a bug in MessagingEngine");
 
-                return SubscribeShared(destination, callback, messageType, basicConsumer as SharedConsumer);
+                return SubscribeShared(
+                    destination,
+                    callback,
+                    messageType,
+                    basicConsumer as SharedConsumer);
             }
         }
 
@@ -190,7 +197,7 @@ namespace Lykke.Messaging.RabbitMq
         {
             if (consumer == null)
             {
-                consumer = new SharedConsumer(m_Model);
+                consumer = new SharedConsumer(_log, m_Model);
                 m_Consumers[destination] = consumer;
                 lock (m_Model)
                     m_Model.BasicConsume(destination, false, consumer);
@@ -210,7 +217,7 @@ namespace Lykke.Messaging.RabbitMq
 
         private IDisposable SubscribeNonShared(string destination, Action<IBasicProperties, byte[], Action<bool>> callback)
         {
-            var consumer = new Consumer(m_Model, callback);
+            var consumer = new Consumer(_log, m_Model, callback);
             lock (m_Model)
                 m_Model.BasicConsume(destination, false, consumer);
             m_Consumers[destination] = consumer;
@@ -244,7 +251,7 @@ namespace Lykke.Messaging.RabbitMq
                 }
                 catch (Exception e)
                 {
-                    //TODO: log
+                    _log.WriteError(nameof(RabbitMqSession), nameof(Dispose), e);
                 }
             }
 
@@ -255,7 +262,7 @@ namespace Lykke.Messaging.RabbitMq
             }
             catch (Exception e)
             {
-                //TODO: log
+                _log.WriteError(nameof(RabbitMqSession), nameof(Dispose), e);
             }
         }
     }

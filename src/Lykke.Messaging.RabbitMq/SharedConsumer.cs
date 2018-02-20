@@ -3,18 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using RabbitMQ.Client;
+using Common.Log;
 
 namespace Lykke.Messaging.RabbitMq
 {
     public class SharedConsumer : DefaultBasicConsumer,IDisposable
     {
+        private readonly ILog _log;
         private readonly Dictionary<string, Action<IBasicProperties, byte[], Action<bool>>> m_Callbacks
             = new Dictionary<string, Action<IBasicProperties, byte[], Action<bool>>>();
         private readonly AutoResetEvent m_CallBackAdded = new AutoResetEvent(false);
         private readonly ManualResetEvent m_Stop = new ManualResetEvent(false);
 
-        public SharedConsumer(IModel model) : base(model)
+        public SharedConsumer(ILog log, IModel model) : base(model)
         {
+            _log = log;
         }
 
         public void AddCallback(Action<IBasicProperties, byte[], Action<bool>> callback, string messageType)
@@ -77,7 +80,7 @@ namespace Lykke.Messaging.RabbitMq
                     }
                     catch (Exception e)
                     {
-                        //TODO:log
+                        _log.WriteError(nameof(SharedConsumer), nameof(HandleBasicDeliver), e);
                     }
                     return;
                 }
@@ -111,7 +114,7 @@ namespace Lykke.Messaging.RabbitMq
                     }
                     catch (Exception e)
                     {
-                        //TODO: log
+                        _log.WriteError(nameof(SharedConsumer), nameof(Stop), e);
                     }
                 }
             }

@@ -1,15 +1,21 @@
 ﻿using System;
 using RabbitMQ.Client;
+using Common.Log;
 
 namespace Lykke.Messaging.RabbitMq
 {
-    internal class Consumer:DefaultBasicConsumer, IDisposable
+    internal class Consumer : DefaultBasicConsumer, IDisposable
     {
+        private readonly ILog _log;
         private readonly Action<IBasicProperties, byte[], Action<bool>> m_Callback;
 
-        public Consumer(IModel model, Action<IBasicProperties, byte[], Action<bool>> callback)
+        public Consumer(
+            ILog log,
+            IModel model,
+            Action<IBasicProperties, byte[], Action<bool>> callback)
             : base(model)
         {
+            _log = log;
             m_Callback = callback ?? throw new ArgumentNullException("callback");
         }
 
@@ -34,7 +40,7 @@ namespace Lykke.Messaging.RabbitMq
             }
             catch (Exception e)
             {
-                //TODO:log
+                _log.WriteError(nameof(Consumer), nameof(HandleBasicDeliver), e);
             }
         }
 
@@ -50,7 +56,7 @@ namespace Lykke.Messaging.RabbitMq
                     }
                     catch (Exception e)
                     {
-                        //TODO: log
+                        _log.WriteError(nameof(Consumer), nameof(Dispose), e);
                     }
                 }
             }

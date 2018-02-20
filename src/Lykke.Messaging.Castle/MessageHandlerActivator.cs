@@ -20,7 +20,7 @@ namespace Lykke.Messaging.Castle
         private readonly Dictionary<Type, Func<object, CommandHandlingResult>> m_Handlers = new Dictionary<Type, Func<object, CommandHandlingResult>>();
         private Action<string> m_HandlerDefault;
         private CompositeDisposable m_Subscriptions;
-        private object m_Lock=new object();
+        private object m_Lock = new object();
 
         public MessageHandlerActivator(
             ComponentModel model,
@@ -75,9 +75,7 @@ namespace Lykke.Messaging.Castle
         private void DispatchUnknown(string type, AcknowledgeDelegate acknowledge)
         {
             if (m_HandlerDefault == null)
-            {
-                throw new InvalidOperationException(String.Format("Failed to handle unknown message: {0}, no default handler registered", type));
-            }
+                throw new InvalidOperationException($"Failed to handle unknown message: {type}, no default handler registered");
 
             try
             {
