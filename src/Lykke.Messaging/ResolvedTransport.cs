@@ -63,7 +63,7 @@ namespace Lykke.Messaging
                 if (messagingSession == null)
                 {
                     messagingSession = new MessagingSessionWrapper(transportId, name);
-                    messagingSession.SetSession(transport.CreateSession(Helper.CallOnlyOnce(()=>processSessionFailure(messagingSession))));
+                    messagingSession.SetSession(transport.CreateSession(Helper.CallOnlyOnce(() => processSessionFailure(messagingSession))));
                     m_MessagingSessions.Add(messagingSession);
                 }
             }

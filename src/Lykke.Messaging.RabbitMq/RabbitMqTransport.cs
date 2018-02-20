@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using Microsoft.Extensions.PlatformAbstractions;
 using Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
@@ -21,6 +22,8 @@ namespace Lykke.Messaging.RabbitMq
         private readonly List<RabbitMqSession> m_Sessions = new List<RabbitMqSession>();
         private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
         private readonly bool m_ShuffleBrokersOnSessionCreate;
+        private readonly string _appName = PlatformServices.Default.Application.ApplicationName;
+        private readonly string _appVersion = PlatformServices.Default.Application.ApplicationVersion;
 
         internal long SessionsCount
         {
@@ -89,7 +92,7 @@ namespace Lykke.Messaging.RabbitMq
             {
                 try
                 {
-                    var connection = factories[i].CreateConnection();
+                    var connection = factories[i].CreateConnection($"{_appName} {_appVersion}");
                     if (logConnection)
                         _log.WriteInfoAsync(
                             nameof(RabbitMqTransport),
