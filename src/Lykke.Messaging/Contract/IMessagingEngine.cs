@@ -21,7 +21,7 @@ namespace Lykke.Messaging.Contract
     public delegate void CallbackDelegate<in TMessage>(TMessage message, AcknowledgeDelegate acknowledge, Dictionary<string, string> headers);
 
     //TODO: CallbackDelegate overloads for SendRequest RegisterHandler
-    public interface IMessagingEngine:IDisposable
+    public interface IMessagingEngine : IDisposable
     {
         void AddProcessingGroup(string name, ProcessingGroupInfo info);
         bool GetProcessingGroupInfo(string name, out ProcessingGroupInfo groupInfo);
@@ -90,7 +90,11 @@ namespace Lykke.Messaging.Contract
             string processingGroup = null);
 		IDisposable RegisterHandler<TRequest, TResponse>(Func<TRequest, TResponse> handler, Endpoint endpoint) where TResponse : class;
 
-        bool VerifyEndpoint(Endpoint endpoint, EndpointUsage usage, bool configureIfRequired, out string error);
+        bool VerifyEndpoint(
+            Endpoint endpoint,
+            EndpointUsage usage,
+            bool configureIfRequired,
+            out string error);
         string GetStatistics();
     }
 }

@@ -52,7 +52,13 @@ namespace Lykke.Messaging.InMemory
             var replyTo = Guid.NewGuid().ToString();
             var responseTopic = m_Transport.CreateTemporary(replyTo);
 
-            var request = new RequestHandle(callback, responseTopic.Dispose, cb => Subscribe(replyTo, (binaryMessage, acknowledge) => cb(binaryMessage), null));
+            var request = new RequestHandle(
+                callback,
+                responseTopic.Dispose,
+                cb => Subscribe(
+                    replyTo,
+                    (binaryMessage, acknowledge) => cb(binaryMessage),
+                    null));
             message.Headers["ReplyTo"] = replyTo;
             Send(destination, message, 0);
             return request;

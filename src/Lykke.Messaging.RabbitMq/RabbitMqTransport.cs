@@ -13,13 +13,14 @@ namespace Lykke.Messaging.RabbitMq
 {
     internal class RabbitMqTransport : ITransport
     {
+        private static readonly Random m_Random = new Random((int)DateTime.Now.Ticks & 0x0000FFFF);
+
         private readonly ILog _log;
         private readonly TimeSpan? m_NetworkRecoveryInterval;
         private readonly ConnectionFactory[] m_Factories;
         private readonly List<RabbitMqSession> m_Sessions = new List<RabbitMqSession>();
-        readonly ManualResetEvent m_IsDisposed=new ManualResetEvent(false);
+        private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
         private readonly bool m_ShuffleBrokersOnSessionCreate;
-        private static readonly Random m_Random = new Random((int)DateTime.Now.Ticks & 0x0000FFFF);
 
         internal long SessionsCount
         {
@@ -77,24 +78,23 @@ namespace Lykke.Messaging.RabbitMq
         }
 
         [MethodImpl(MethodImplOptions.Synchronized)]
-        private IConnection CreateConnection()
+        private IConnection CreateConnection(bool logConnection)
         {
-            Exception exception=null;
+            Exception exception = null;
             var factories = m_Factories;
             if (m_ShuffleBrokersOnSessionCreate)
-            {
                 factories = factories.OrderBy(x => m_Random.Next()).ToArray();
-            }
 
             for (int i = 0; i < factories.Length; i++)
             {
                 try
                 {
                     var connection = factories[i].CreateConnection();
-                    _log.WriteInfoAsync(
-                        nameof(RabbitMqTransport),
-                        nameof(CreateConnection),
-                        $"Created rmq connection to {factories[i].Endpoint.HostName}.");
+                    if (logConnection)
+                        _log.WriteInfoAsync(
+                            nameof(RabbitMqTransport),
+                            nameof(CreateConnection),
+                            $"Created rmq connection to {factories[i].Endpoint.HostName}.");
                     return connection;
                 }
                 catch (Exception e)
@@ -107,9 +107,9 @@ namespace Lykke.Messaging.RabbitMq
                     exception = e;
                 }
             }
-            throw new TransportException("Failed to create rmq connection",exception);
+            throw new TransportException("Failed to create rmq connection", exception);
         }
- 
+
         public void Dispose()
         {
             m_IsDisposed.Set();
@@ -129,7 +129,7 @@ namespace Lykke.Messaging.RabbitMq
             if(m_IsDisposed.WaitOne(0))
                 throw new ObjectDisposedException("Transport is disposed");
 
-            var connection = CreateConnection();
+            var connection = CreateConnection(true);
             var session = new RabbitMqSession(connection, confirmedSending, (rabbitMqSession, destination, exception) =>
             {
                 lock (m_Sessions)
@@ -185,16 +185,19 @@ namespace Lykke.Messaging.RabbitMq
             return CreateSession(onFailure, false);
         }
 
-        public bool VerifyDestination(Destination destination, EndpointUsage usage, bool configureIfRequired, out string error)
+        public bool VerifyDestination(
+            Destination destination,
+            EndpointUsage usage,
+            bool configureIfRequired,
+            out string error)
         {
             try
             {
                 var publish = PublicationAddress.Parse(destination.Publish) ?? new PublicationAddress("topic", destination.Publish, ""); ;
-                using (IConnection connection = CreateConnection())
+                using (IConnection connection = CreateConnection(false))
                 {
                     using (IModel channel = connection.CreateModel())
                     {
-
                         if (publish.ExchangeName == "" && publish.ExchangeType.ToLower() == "direct")
                         {
                             //default exchange should not be verified since it always exists and publication to it is always possible

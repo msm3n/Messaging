@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -18,7 +18,11 @@ namespace Lykke.Messaging
         private readonly ITransportFactory m_Factory;
         private readonly List<MessagingSessionWrapper> m_MessagingSessions = new List<MessagingSessionWrapper>();
 
-        public ResolvedTransport(ILog log, TransportInfo transportInfo, Action processTransportFailure, ITransportFactory factory)
+        public ResolvedTransport(
+            ILog log,
+            TransportInfo transportInfo,
+            Action processTransportFailure,
+            ITransportFactory factory)
         {
             _log = log;
             m_Factory = factory;
@@ -117,10 +121,18 @@ namespace Lykke.Messaging
         }
 
         [MethodImpl(MethodImplOptions.Synchronized)]
-        public bool VerifyDestination(Destination destination, EndpointUsage usage, bool configureIfRequired,out string error)
+        public bool VerifyDestination(
+            Destination destination,
+            EndpointUsage usage,
+            bool configureIfRequired,
+            out string error)
         {
             var transport = Transport ?? (Transport = m_Factory.Create(_log, m_TransportInfo, processTransportFailure));
-            return transport.VerifyDestination(destination, usage, configureIfRequired, out error);
+            return transport.VerifyDestination(
+                destination,
+                usage,
+                configureIfRequired,
+                out error);
         }
     }
 }

@@ -25,7 +25,7 @@ namespace Lykke.Messaging
                 {
                     if (m_JailStrategies.ContainsKey(jailStrategy.Key))
                         throw new ArgumentOutOfRangeException(
-                            "jailStrategies", string.Format("Jail strategy with key {0} already registered.", jailStrategy.Key));
+                            "jailStrategies", $"Jail strategy with key {jailStrategy.Key} already registered.");
 
                     m_JailStrategies.Add(jailStrategy.Key, jailStrategy.Value);
                 }

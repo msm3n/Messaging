@@ -7,7 +7,11 @@
 
         public static implicit operator Destination(string destination)
         {
-            return new Destination {Publish=destination, Subscribe = destination}; 
+            return new Destination
+            {
+                Publish = destination,
+                Subscribe = destination
+            };
         }
 
         public bool Equals(Destination other)

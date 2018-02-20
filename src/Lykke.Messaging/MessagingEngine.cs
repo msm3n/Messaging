@@ -84,7 +84,11 @@ namespace Lykke.Messaging
 
         #region IMessagingEngine Members
 
-        public  bool VerifyEndpoint(Endpoint endpoint, EndpointUsage usage, bool configureIfRequired,out string error)
+        public  bool VerifyEndpoint(
+            Endpoint endpoint,
+            EndpointUsage usage,
+            bool configureIfRequired,
+            out string error)
         {
             return m_TransportManager.VerifyDestination(
                 endpoint.TransportId,
