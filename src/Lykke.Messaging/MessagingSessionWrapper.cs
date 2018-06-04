@@ -1,5 +1,6 @@
 ﻿using System;
 using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
 
@@ -16,9 +17,23 @@ namespace Lykke.Messaging
 
         public event Action OnFailure;
 
+        [Obsolete]
         public MessagingSessionWrapper(ILog log, string transportId, string name)
         {
             _log = log;
+
+            TransportId = transportId;
+            Name = name;
+        }
+
+        public MessagingSessionWrapper(ILogFactory logFactory, string transportId, string name)
+        {
+            if (logFactory == null)
+            {
+                throw new ArgumentNullException(nameof(logFactory));
+            }
+
+            _log = logFactory.CreateLog(this);
 
             TransportId = transportId;
             Name = name;

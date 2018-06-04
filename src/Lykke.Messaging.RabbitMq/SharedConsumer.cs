@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using RabbitMQ.Client;
 using Common.Log;
+using Lykke.Common.Log;
 
 namespace Lykke.Messaging.RabbitMq
 {
@@ -15,9 +16,20 @@ namespace Lykke.Messaging.RabbitMq
         private readonly AutoResetEvent m_CallBackAdded = new AutoResetEvent(false);
         private readonly ManualResetEvent m_Stop = new ManualResetEvent(false);
 
+        [Obsolete]
         public SharedConsumer(ILog log, IModel model) : base(model)
         {
             _log = log;
+        }
+
+        public SharedConsumer(ILogFactory logFactory, IModel model) : base(model)
+        {
+            if (logFactory == null)
+            {
+                throw new ArgumentNullException(nameof(logFactory));
+            }
+
+            _log = logFactory.CreateLog(this);
         }
 
         public void AddCallback(Action<IBasicProperties, byte[], Action<bool>> callback, string messageType)

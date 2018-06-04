@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
@@ -16,12 +17,21 @@ namespace Lykke.Messaging
         private readonly ITransportResolver m_TransportResolver;
         private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
         private readonly ITransportFactory[] m_TransportFactories;
+        private readonly  ILogFactory _logFactory;
 
+        [Obsolete]
         public TransportManager(ILog log, ITransportResolver transportResolver, params ITransportFactory[] transportFactories)
         {
             m_TransportFactories = transportFactories.Concat(new[] {new InMemoryTransportFactory()}).ToArray();
             _log = log;
             m_TransportResolver = transportResolver ?? throw new ArgumentNullException("transportResolver");
+        }
+
+        public TransportManager(ILogFactory logFactory, ITransportResolver transportResolver, params ITransportFactory[] transportFactories)
+        {
+            _logFactory = logFactory ?? throw new ArgumentNullException(nameof(logFactory));
+            m_TransportFactories = transportFactories.Concat(new[] { new InMemoryTransportFactory() }).ToArray();
+            m_TransportResolver = transportResolver ?? throw new ArgumentNullException(nameof(transportResolver));
         }
 
         public ITransportResolver TransportResolver
@@ -84,7 +94,9 @@ namespace Lykke.Messaging
                 {
                     if (!m_Transports.TryGetValue(transportInfo, out transport))
                     {
-                        transport = new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory);
+                        transport = _logFactory == null ? 
+                            new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory) : 
+                            new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory);
                         m_Transports.Add(transportInfo, transport);
                     }
                 }

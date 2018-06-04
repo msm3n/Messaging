@@ -1,6 +1,7 @@
 ﻿using System;
 using RabbitMQ.Client;
 using Common.Log;
+using Lykke.Common.Log;
 
 namespace Lykke.Messaging.RabbitMq
 {
@@ -9,6 +10,7 @@ namespace Lykke.Messaging.RabbitMq
         private readonly ILog _log;
         private readonly Action<IBasicProperties, byte[], Action<bool>> m_Callback;
 
+        [Obsolete]
         public Consumer(
             ILog log,
             IModel model,
@@ -17,6 +19,22 @@ namespace Lykke.Messaging.RabbitMq
         {
             _log = log;
             m_Callback = callback ?? throw new ArgumentNullException("callback");
+        }
+
+        public Consumer(
+            ILogFactory logFactory,
+            IModel model,
+            Action<IBasicProperties, byte[], Action<bool>> callback)
+            
+            : base(model)
+        {
+            if (logFactory == null)
+            {
+                throw new ArgumentNullException(nameof(logFactory));
+            }
+
+            _log = logFactory.CreateLog(this);
+            m_Callback = callback ?? throw new ArgumentNullException(nameof(callback));
         }
 
         public override void HandleBasicDeliver(

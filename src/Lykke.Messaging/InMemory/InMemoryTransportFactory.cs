@@ -14,6 +14,7 @@ namespace Lykke.Messaging.InMemory
             get { return "InMemory"; }
         }
 
+        [Obsolete]
         public ITransport Create(ILog log, TransportInfo transportInfo, Action onFailure)
         {
             lock (m_Transports)
@@ -24,6 +25,21 @@ namespace Lykke.Messaging.InMemory
                     transport = new InMemoryTransport();
                     m_Transports.Add(transportInfo, transport);
                 }
+                return transport;
+            }
+        }
+
+        public ITransport Create(TransportInfo transportInfo, Action onFailure)
+        {
+            lock (m_Transports)
+            {
+                if (m_Transports.TryGetValue(transportInfo, out var transport))
+                {
+                    return transport;
+                }
+
+                transport = new InMemoryTransport();
+                m_Transports.Add(transportInfo, transport);
                 return transport;
             }
         }

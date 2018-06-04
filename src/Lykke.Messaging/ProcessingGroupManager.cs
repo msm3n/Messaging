@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reactive.Disposables;
 using System.Text;
 using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Core.Utils;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
@@ -26,6 +27,7 @@ namespace Lykke.Messaging
 
         public int ResubscriptionTimeout { get; set; }
 
+        [Obsolete]
         public ProcessingGroupManager(
             ILog log,
             ITransportManager transportManager,
@@ -39,6 +41,27 @@ namespace Lykke.Messaging
             m_DeferredAcknowledger = new SchedulingBackgroundWorker("DeferredAcknowledgement", () => ProcessDeferredAcknowledgements());
             m_Resubscriber = new SchedulingBackgroundWorker("Resubscription", () => ProcessResubscription());
         }
+
+        public ProcessingGroupManager(
+            ILogFactory logFactory,
+            ITransportManager transportManager,
+            IDictionary<string, ProcessingGroupInfo> processingGroups = null,
+            int resubscriptionTimeout = 60000)
+        {
+            if (logFactory == null)
+            {
+                throw new ArgumentNullException(nameof(logFactory));
+            }
+
+            _log = logFactory.CreateLog(this);
+
+            m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
+            m_TransportManager = transportManager;
+            ResubscriptionTimeout = resubscriptionTimeout;
+            m_DeferredAcknowledger = new SchedulingBackgroundWorker("DeferredAcknowledgement", () => ProcessDeferredAcknowledgements());
+            m_Resubscriber = new SchedulingBackgroundWorker("Resubscription", () => ProcessResubscription());
+        }
+
 
         public void AddProcessingGroup(string name,ProcessingGroupInfo info)
         {

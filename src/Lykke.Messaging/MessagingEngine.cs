@@ -6,6 +6,8 @@ using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Threading;
 using Common.Log;
+using JetBrains.Annotations;
+using Lykke.Common.Log;
 using Lykke.Core.Utils;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Serialization;
@@ -13,6 +15,7 @@ using Lykke.Messaging.Transports;
 
 namespace Lykke.Messaging
 {
+    [PublicAPI]
     public class MessagingEngine : IMessagingEngine
     {
         private const int DEFAULT_UNACK_DELAY = 60000;
@@ -29,6 +32,7 @@ namespace Lykke.Messaging
         private readonly Dictionary<RequestHandle, Action<Exception>> m_ActualRequests = new Dictionary<RequestHandle, Action<Exception>>();
         private readonly ProcessingGroupManager m_ProcessingGroupManager;
 
+        [Obsolete]
         public MessagingEngine(
             ILog log,
             ITransportResolver transportResolver,
@@ -45,10 +49,44 @@ namespace Lykke.Messaging
         }
 
         public MessagingEngine(
+            ILogFactory logFactory,
+            ITransportResolver transportResolver,
+            IDictionary<string, ProcessingGroupInfo> processingGroups = null,
+            params ITransportFactory[] transportFactories)
+        {
+            if (logFactory == null)
+            {
+                throw new ArgumentNullException(nameof(logFactory));
+            }
+            if (transportResolver == null)
+            {
+                throw new ArgumentNullException(nameof(transportResolver));
+            }
+
+            _log = logFactory.CreateLog(this);
+
+            m_TransportManager = new TransportManager(logFactory, transportResolver, transportFactories);
+            m_ProcessingGroupManager = new ProcessingGroupManager(logFactory, m_TransportManager, processingGroups);
+            m_SerializationManager = new SerializationManager();
+            m_RequestTimeoutManager = new SchedulingBackgroundWorker("RequestTimeoutManager", () => StopTimeoutedRequests());
+
+            CreateMessagingHandle(() => StopTimeoutedRequests(true));
+        }
+
+        [Obsolete]
+        public MessagingEngine(
             ILog log,
             ITransportResolver transportResolver,
             params ITransportFactory[] transportFactories)
             : this(log, transportResolver,null, transportFactories)
+        {
+        }
+
+        public MessagingEngine(
+            ILogFactory logFactory,
+            ITransportResolver transportResolver,
+            params ITransportFactory[] transportFactories)
+            : this(logFactory, transportResolver, null, transportFactories)
         {
         }
 

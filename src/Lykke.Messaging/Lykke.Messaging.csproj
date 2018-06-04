@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Lykke.Common" Version="4.4.3" />
+    <PackageReference Include="Lykke.Common" Version="7.0.0-beta.12" />
     <PackageReference Include="MessagePack" Version="1.7.3.4" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
     <PackageReference Include="protobuf-net" Version="2.3.7" />

@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reactive.Disposables;
 using System.Text;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
 
@@ -21,7 +23,9 @@ namespace Lykke.Messaging.RabbitMq
         private readonly Action<RabbitMqSession, PublicationAddress, Exception> m_OnSendFail;
 
         private bool m_ConfirmedSending = false;
+        private readonly ILogFactory _logFactory;
 
+        [Obsolete]
         public RabbitMqSession(
             ILog log,
             IConnection connection,
@@ -55,6 +59,44 @@ namespace Lykke.Messaging.RabbitMq
                         }
                     }
                 };
+        }
+
+        public RabbitMqSession(
+            ILogFactory logFactory,
+            IConnection connection,
+            bool confirmedSending = false,
+            Action<RabbitMqSession, PublicationAddress, Exception> onSendFail = null)
+        {
+
+            _logFactory = logFactory ?? throw new ArgumentNullException(nameof(logFactory));
+            _log = logFactory.CreateLog(this);
+
+            m_OnSendFail = onSendFail ?? ((s, d, e) => { });
+            m_Connection = connection;
+            m_Model = m_Connection.CreateModel();
+            if (confirmedSending)
+                m_Model.ConfirmSelect();
+            //NOTE: looks like publish confirm is required for guaranteed delivery
+            //smth like:
+            //  m_Model.ConfirmSelect();
+            //and publish like this:
+            //  m_Model.BasicPublish()
+            //  m_Model.WaitForConfirmsOrDie();
+            //it will wait for ack from server and throw exception if message failed to persist ons srever side (e.g. broker reboot)
+            //more info here: http://rianjs.net/2013/12/publisher-confirms-with-rabbitmq-and-c-sharp
+
+            //No limit to prefetch size, but limit prefetch to 1 message (actually no prefetch since this one message is the message being processed). 
+            //m_Model.BasicQos(0,1,false);
+            connection.ConnectionShutdown += (connection1, reason) =>
+            {
+                lock (m_Consumers)
+                {
+                    foreach (var consumer in m_Consumers.Values.OfType<IDisposable>())
+                    {
+                        consumer.Dispose();
+                    }
+                }
+            };
         }
 
         public Destination CreateTemporaryDestination()
@@ -197,7 +239,9 @@ namespace Lykke.Messaging.RabbitMq
         {
             if (consumer == null)
             {
-                consumer = new SharedConsumer(_log, m_Model);
+                consumer = _logFactory == null
+                    ? new SharedConsumer(_log, m_Model)
+                    : new SharedConsumer(_logFactory, m_Model);
                 m_Consumers[destination] = consumer;
                 lock (m_Model)
                     m_Model.BasicConsume(destination, false, consumer);
@@ -217,7 +261,10 @@ namespace Lykke.Messaging.RabbitMq
 
         private IDisposable SubscribeNonShared(string destination, Action<IBasicProperties, byte[], Action<bool>> callback)
         {
-            var consumer = new Consumer(_log, m_Model, callback);
+            var consumer = _logFactory == null 
+                ? new Consumer(_log, m_Model, callback)
+                : new Consumer(_logFactory, m_Model, callback);
+
             lock (m_Model)
                 m_Model.BasicConsume(destination, false, consumer);
             m_Consumers[destination] = consumer;

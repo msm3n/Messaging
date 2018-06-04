@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Microsoft.Extensions.PlatformAbstractions;
 using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
 using RabbitMQ.Client;
@@ -16,6 +17,7 @@ namespace Lykke.Messaging.RabbitMq
     {
         private static readonly Random m_Random = new Random((int)DateTime.UtcNow.Ticks & 0x0000FFFF);
 
+        private readonly ILogFactory _logFactory;
         private readonly ILog _log;
         private readonly TimeSpan? m_NetworkRecoveryInterval;
         private readonly ConnectionFactory[] m_Factories;
@@ -24,12 +26,13 @@ namespace Lykke.Messaging.RabbitMq
         private readonly bool m_ShuffleBrokersOnSessionCreate;
         private readonly string _appName = PlatformServices.Default.Application.ApplicationName;
         private readonly string _appVersion = PlatformServices.Default.Application.ApplicationVersion;
-
+        
         internal long SessionsCount
         {
             get { return m_Sessions.Count; }
         }
 
+        [Obsolete]
         public RabbitMqTransport(
             ILog log,
             string broker,
@@ -39,6 +42,16 @@ namespace Lykke.Messaging.RabbitMq
         {
         }
 
+        public RabbitMqTransport(
+            ILogFactory logFactory,
+            string broker,
+            string username,
+            string password)
+            : this(logFactory, new[] { broker }, username, password)
+        {
+        }
+
+        [Obsolete]
         public RabbitMqTransport(
             ILog log,
             string[] brokers,
@@ -67,6 +80,57 @@ namespace Lykke.Messaging.RabbitMq
                 }
 
                 if (Uri.TryCreate(brokerName, UriKind.Absolute, out uri))
+                {
+                    f.Uri = uri.ToString();
+                }
+                else
+                {
+                    f.HostName = brokerName;
+                }
+                return f;
+            });
+
+            m_Factories = factories.ToArray();
+        }
+
+        public RabbitMqTransport(
+            ILogFactory logFactory,
+            string[] brokers,
+            string username,
+            string password,
+            bool shuffleBrokersOnSessionCreate = true,
+            TimeSpan? networkRecoveryInterval = null)
+        {
+            _logFactory = logFactory ?? throw new ArgumentNullException(nameof(logFactory));
+            _log = logFactory.CreateLog(this);
+
+            m_NetworkRecoveryInterval = networkRecoveryInterval;
+            m_ShuffleBrokersOnSessionCreate = shuffleBrokersOnSessionCreate && brokers.Length > 1;
+
+            if (brokers == null)
+            {
+                throw new ArgumentNullException(nameof(brokers));
+            }
+            if (brokers.Length == 0)
+            {
+                throw new ArgumentException("brokers list is empty", nameof(brokers));
+            }
+
+            var factories = brokers.Select(brokerName =>
+            {
+                var f = new ConnectionFactory
+                {
+                    UserName = username,
+                    Password = password,
+                    AutomaticRecoveryEnabled = m_NetworkRecoveryInterval.HasValue
+                };
+
+                if (m_NetworkRecoveryInterval.HasValue)
+                {
+                    f.NetworkRecoveryInterval = m_NetworkRecoveryInterval.Value; //it's default value
+                }
+
+                if (Uri.TryCreate(brokerName, UriKind.Absolute, out var uri))
                 {
                     f.Uri = uri.ToString();
                 }
@@ -133,11 +197,28 @@ namespace Lykke.Messaging.RabbitMq
                 throw new ObjectDisposedException("Transport is disposed");
 
             var connection = CreateConnection(true);
-            var session = new RabbitMqSession(
-                _log,
-                connection,
-                confirmedSending,
-                (rabbitMqSession, destination, exception) =>
+            var session = _logFactory == null
+                ? new RabbitMqSession(
+                    _log,
+                    connection,
+                    confirmedSending,
+                    (rabbitMqSession, destination, exception) =>
+                    {
+                        lock (m_Sessions)
+                        {
+                            m_Sessions.Remove(rabbitMqSession);
+                            _log.WriteErrorAsync(
+                                nameof(RabbitMqTransport),
+                                nameof(CreateSession),
+                                $"Failed to send message to destination '{destination}' broker '{connection.Endpoint.HostName}'. Treating session as broken. ",
+                                exception);
+                        }
+                    })
+                : new RabbitMqSession(
+                    _logFactory,
+                    connection,
+                    confirmedSending,
+                    (rabbitMqSession, destination, exception) =>
                     {
                         lock (m_Sessions)
                         {

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using Castle.Core.Internal;
 using Common.Log;
+using Lykke.Logs;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
@@ -48,7 +49,7 @@ namespace Lykke.Messaging.Tests
             transport.Expect(t => t.CreateSession(null)).IgnoreArguments().WhenCalled(invocation => creaedSessionOnFailure = (Action) invocation.Arguments[0]);
             factory.Expect(f => f.Create(null, null, null)).IgnoreArguments().Return(transport);
             factory.Expect(f => f.Name).Return("Mock");
-            var transportManager = new TransportManager(new LogToConsole(), resolver, factory);
+            var transportManager = new TransportManager(new EmptyLogFactory(), resolver, factory);
             int i = 0;
            
             transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID3, "test", () => { Interlocked.Increment(ref i); });
@@ -63,7 +64,7 @@ namespace Lykke.Messaging.Tests
         public void ConcurrentTransportResolutionTest()
         {
             var resolver = MockTransportResolver();
-            var transportManager = new TransportManager(new LogToConsole(), resolver, new InMemoryTransportFactory());
+            var transportManager = new TransportManager(new EmptyLogFactory(), resolver, new InMemoryTransportFactory());
             var start = new ManualResetEvent(false);
             int errorCount = 0;
             int attemptCount = 0;
