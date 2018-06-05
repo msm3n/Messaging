@@ -33,12 +33,12 @@ namespace Lykke.Messaging.Tests
         public void SameThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                new EmptyLogFactory(),
+                DirectConsoleLogFactory.Instance,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(new EmptyLogFactory(), transportManager);
+            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager);
 
             var session = transportManager.GetMessagingSession("transport-1", "pg"); var usedThreads = new List<int>();
             var subscription = processingGroupManager.Subscribe(new Endpoint { Destination = "queue", TransportId = "transport-1" },
@@ -64,12 +64,12 @@ namespace Lykke.Messaging.Tests
         public void MultiThreadThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                new EmptyLogFactory(),
+                DirectConsoleLogFactory.Instance,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(new EmptyLogFactory(), transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo() {ConcurrencyLevel = 3}
@@ -103,12 +103,12 @@ namespace Lykke.Messaging.Tests
         public void QueuedTaskSchedulerIsHiddenTest()
         {
             var transportManager = new TransportManager(
-                new EmptyLogFactory(),
+                DirectConsoleLogFactory.Instance,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(new EmptyLogFactory(), transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo() {ConcurrencyLevel = 1,QueueCapacity = 1000}
@@ -142,12 +142,12 @@ namespace Lykke.Messaging.Tests
         public void MultiThreadPrioritizedThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                new EmptyLogFactory(),
+                DirectConsoleLogFactory.Instance,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(new EmptyLogFactory(), transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo {ConcurrencyLevel = 3}
@@ -415,7 +415,7 @@ namespace Lykke.Messaging.Tests
                 .IgnoreArguments()
                 .WhenCalled(invocation => setOnFail((Action)invocation.Arguments[2]))
                 .Return(session);
-            return new ProcessingGroupManager(new EmptyLogFactory(), transportManager,new Dictionary<string, ProcessingGroupInfo>
+            return new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager,new Dictionary<string, ProcessingGroupInfo>
             {
                 {"SingleThread",new ProcessingGroupInfo(){ConcurrencyLevel = 1}},
                 {"MultiThread",new ProcessingGroupInfo(){ConcurrencyLevel = 3}}
