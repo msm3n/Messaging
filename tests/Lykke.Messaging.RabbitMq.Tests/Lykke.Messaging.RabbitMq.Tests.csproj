@@ -8,12 +8,12 @@
 
   <ItemGroup>
     <PackageReference Include="Castle.Windsor" Version="4.1.0" />
-    <PackageReference Include="Lykke.Logs" Version="4.4.0-beta.9" />
+    <PackageReference Include="Lykke.Logs" Version="4.4.0-beta.27" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.6.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.2.0" />
     <PackageReference Include="MSTest.TestFramework" Version="1.2.0" />
-    <PackageReference Include="NLog" Version="4.4.12" />
     <PackageReference Include="NUnit" Version="3.9.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.10.0" />
     <PackageReference Include="RabbitMQ.Client" Version="4.1.1" />
     <PackageReference Include="RhinoMocks" Version="3.6.1" />
     <PackageReference Include="System.Reactive.Core" Version="3.1.1" />

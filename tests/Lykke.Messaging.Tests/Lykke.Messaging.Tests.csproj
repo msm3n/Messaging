@@ -10,7 +10,7 @@
     <PackageReference Include="Castle.Core" Version="4.2.1" />
     <PackageReference Include="Castle.LoggingFacility" Version="4.1.0" />
     <PackageReference Include="Castle.Windsor" Version="4.1.0" />
-    <PackageReference Include="Lykke.Logs" Version="4.4.0-beta.9" />
+    <PackageReference Include="Lykke.Logs" Version="4.4.0-beta.27" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.6.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.2.0" />
     <PackageReference Include="MSTest.TestFramework" Version="1.2.0" />

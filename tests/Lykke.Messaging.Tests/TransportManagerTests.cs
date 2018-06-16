@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Castle.Core.Internal;
-using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Logs;
-using Lykke.Messaging.Contract;
+using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
-using Lykke.Messaging;
 using NUnit.Framework;
 using Rhino.Mocks;
 
@@ -18,8 +15,20 @@ namespace Lykke.Messaging.Tests
     // ReSharper disable PossibleNullReferenceException
 
     [TestFixture]
-    public class TransportManagerTests
+    public class TransportManagerTests : IDisposable
     {
+        private readonly ILogFactory _logFactory;
+
+        public TransportManagerTests()
+        {
+            _logFactory = LogFactory.Create().AddUnbufferedConsole();
+        }
+
+        public void Dispose()
+        {
+            _logFactory?.Dispose();
+        }
+
         private class TransportConstants
         {
             public const string TRANSPORT_ID1 = "tr1";
@@ -49,7 +58,7 @@ namespace Lykke.Messaging.Tests
             transport.Expect(t => t.CreateSession(null)).IgnoreArguments().WhenCalled(invocation => creaedSessionOnFailure = (Action) invocation.Arguments[0]);
             factory.Expect(f => f.Create(null, null, null)).IgnoreArguments().Return(transport);
             factory.Expect(f => f.Name).Return("Mock");
-            var transportManager = new TransportManager(DirectConsoleLogFactory.Instance, resolver, factory);
+            var transportManager = new TransportManager(_logFactory, resolver, factory);
             int i = 0;
            
             transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID3, "test", () => { Interlocked.Increment(ref i); });
@@ -64,7 +73,7 @@ namespace Lykke.Messaging.Tests
         public void ConcurrentTransportResolutionTest()
         {
             var resolver = MockTransportResolver();
-            var transportManager = new TransportManager(DirectConsoleLogFactory.Instance, resolver, new InMemoryTransportFactory());
+            var transportManager = new TransportManager(_logFactory, resolver, new InMemoryTransportFactory());
             var start = new ManualResetEvent(false);
             int errorCount = 0;
             int attemptCount = 0;
@@ -100,7 +109,6 @@ namespace Lykke.Messaging.Tests
 
 
         }
-
     }
 
     // ReSharper restore InconsistentNaming

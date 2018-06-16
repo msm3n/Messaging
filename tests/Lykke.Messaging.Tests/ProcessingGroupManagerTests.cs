@@ -5,21 +5,32 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Castle.Core.Internal;
-using Common.Log;
+using Lykke.Common.Log;
 using Lykke.Logs;
+using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.Contract;
-using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
-using Lykke.Messaging;
 using NUnit.Framework;
 using Rhino.Mocks;
+using Assert = NUnit.Framework.Assert;
 
 namespace Lykke.Messaging.Tests
 {
     [TestFixture]
-    public class ProcessingGroupManagerTests
+    public class ProcessingGroupManagerTests : IDisposable
     {
+        private readonly ILogFactory _logFactory;
+        
+        public ProcessingGroupManagerTests()
+        {
+            _logFactory = LogFactory.Create().AddUnbufferedConsole();
+        }
+
+        public void Dispose()
+        {
+            _logFactory?.Dispose();
+        }
+        
         [Test]        
         public void ProcessingGroupWithZeroConcurrencyDoesNotAcceptPriority()
         {
@@ -33,12 +44,12 @@ namespace Lykke.Messaging.Tests
         public void SameThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                DirectConsoleLogFactory.Instance,
+                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager);
+            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager);
 
             var session = transportManager.GetMessagingSession("transport-1", "pg"); var usedThreads = new List<int>();
             var subscription = processingGroupManager.Subscribe(new Endpoint { Destination = "queue", TransportId = "transport-1" },
@@ -64,12 +75,12 @@ namespace Lykke.Messaging.Tests
         public void MultiThreadThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                DirectConsoleLogFactory.Instance,
+                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo() {ConcurrencyLevel = 3}
@@ -103,12 +114,12 @@ namespace Lykke.Messaging.Tests
         public void QueuedTaskSchedulerIsHiddenTest()
         {
             var transportManager = new TransportManager(
-                DirectConsoleLogFactory.Instance,
+                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo() {ConcurrencyLevel = 1,QueueCapacity = 1000}
@@ -142,12 +153,12 @@ namespace Lykke.Messaging.Tests
         public void MultiThreadPrioritizedThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                DirectConsoleLogFactory.Instance,
+                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo {ConcurrencyLevel = 3}
@@ -199,7 +210,7 @@ namespace Lykke.Messaging.Tests
           public void DeferredAcknowledgementTest()
           {
               Action<BinaryMessage, Action<bool>> callback=null;
-              using (var processingGroupManager = createProcessingGroupManagerWithMockedDependencies(action => callback = action))
+              using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action))
               {
 
                   DateTime processed = default(DateTime);
@@ -230,7 +241,7 @@ namespace Lykke.Messaging.Tests
             bool? stuckedInQueueMessageAck = null;
             var finishProcessing=new ManualResetEvent(false);
             Action<BinaryMessage, Action<bool>> callback = null;
-            using (var processingGroupManager = createProcessingGroupManagerWithMockedDependencies(action => callback = action))
+            using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action))
             {
                 IDisposable subscription=null ;
                 subscription = processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
@@ -258,7 +269,7 @@ namespace Lykke.Messaging.Tests
               Action<BinaryMessage, Action<bool>> callback=null;
               bool acknowledged = false;
 
-              using (var processingGroupManager = createProcessingGroupManagerWithMockedDependencies(action => callback = action))
+              using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action))
               {
                  var subscription= processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                       {
@@ -291,7 +302,7 @@ namespace Lykke.Messaging.Tests
                 subscribed.Set();
             };
             Action emulateFail=null;
-            using ( var processingGroupManager = createProcessingGroupManagerWithMockedDependencies(action => { }, action => emulateFail = emulateFail ?? action, onSubscribe))
+            using ( var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => { }, action => emulateFail = emulateFail ?? action, onSubscribe))
             {
                 using (processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                 {
@@ -324,7 +335,7 @@ namespace Lykke.Messaging.Tests
                 subscribed.Set();
             };
 
-            using (var processingGroupManager = createProcessingGroupManagerWithMockedDependencies(action => callback = action, action => emulateFail = action, onSubscribe ))
+            using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action, action => emulateFail = action, onSubscribe ))
             {
                 var subscription =processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                     {
@@ -358,7 +369,7 @@ namespace Lykke.Messaging.Tests
         }
 
         [Test]
-        [Ignore("PerformanceTest")]
+        [NUnit.Framework.Ignore("PerformanceTest")]
         public void DeferredAcknowledgementPerformanceTest()
         {
             var rnd = new Random();
@@ -372,7 +383,7 @@ namespace Lykke.Messaging.Tests
                 Action<BinaryMessage, Action<bool>> callback = null;
                 long counter = messageCount;
                 var complete = new ManualResetEvent(false);
-                var processingGroupManager = createProcessingGroupManagerWithMockedDependencies(action => callback = action);
+                var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action);
                 Stopwatch sw = Stopwatch.StartNew();
                 processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                     {
@@ -394,7 +405,7 @@ namespace Lykke.Messaging.Tests
         }
 
 
-        private static ProcessingGroupManager createProcessingGroupManagerWithMockedDependencies(Action<Action<BinaryMessage, Action<bool>>> setCallback, Action<Action> setOnFail = null, Action onSubscribe = null)
+        private ProcessingGroupManager CreateProcessingGroupManagerWithMockedDependencies(Action<Action<BinaryMessage, Action<bool>>> setCallback, Action<Action> setOnFail = null, Action onSubscribe = null)
         {
 
             if (setOnFail == null)
@@ -415,7 +426,7 @@ namespace Lykke.Messaging.Tests
                 .IgnoreArguments()
                 .WhenCalled(invocation => setOnFail((Action)invocation.Arguments[2]))
                 .Return(session);
-            return new ProcessingGroupManager(DirectConsoleLogFactory.Instance, transportManager,new Dictionary<string, ProcessingGroupInfo>
+            return new ProcessingGroupManager(_logFactory, transportManager,new Dictionary<string, ProcessingGroupInfo>
             {
                 {"SingleThread",new ProcessingGroupInfo(){ConcurrencyLevel = 1}},
                 {"MultiThread",new ProcessingGroupInfo(){ConcurrencyLevel = 3}}
