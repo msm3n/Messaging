@@ -437,7 +437,7 @@ namespace Lykke.Messaging
             {
                 var timeouted = stopAll
                     ? m_ActualRequests.ToArray()
-                    : m_ActualRequests.Where(r => r.Key.DueDate <= DateTime.Now || r.Key.IsComplete).ToArray();
+                    : m_ActualRequests.Where(r => r.Key.DueDate <= DateTime.UtcNow || r.Key.IsComplete).ToArray();
 
                 Array.ForEach(timeouted, r =>
                 {
@@ -489,7 +489,7 @@ namespace Lykke.Messaging
 
                     lock (m_ActualRequests)
                     {
-                        requestHandle.DueDate = DateTime.Now.AddMilliseconds(timeout);
+                        requestHandle.DueDate = DateTime.UtcNow.AddMilliseconds(timeout);
                         m_ActualRequests.Add(requestHandle, onFailure);
                         m_RequestTimeoutManager.Schedule(timeout);
                     }

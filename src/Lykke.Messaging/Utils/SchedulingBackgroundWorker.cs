@@ -51,7 +51,7 @@ namespace Lykke.Core.Utils
 
         private int DoWorkIfRequired()
         {
-            var now = DateTime.Now; 
+            var now = DateTime.UtcNow; 
             int timeout = -1;
 
             bool hasToDoWork=false;
@@ -82,7 +82,7 @@ namespace Lykke.Core.Utils
 
         public void Schedule(long ms)
         {
-            var next = DateTime.Now.AddMilliseconds(ms);
+            var next = DateTime.UtcNow.AddMilliseconds(ms);
             lock(m_ScheduledDates)
             {
                 m_ScheduledDates.Add(next);

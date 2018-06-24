@@ -188,7 +188,7 @@ namespace Lykke.Messaging
             {
                 m_ResubscriptionSchedule.Add(
                     Tuple.Create<DateTime, Action>(
-                        DateTime.Now.AddMilliseconds(attemptCount == 0 ? 100 : ResubscriptionTimeout), () => subscribe(attemptCount)));
+                        DateTime.UtcNow.AddMilliseconds(attemptCount == 0 ? 100 : ResubscriptionTimeout), () => subscribe(attemptCount)));
                 m_Resubscriber.Schedule(ResubscriptionTimeout);
             }
         }
@@ -201,7 +201,7 @@ namespace Lykke.Messaging
             {
                 ready = all
                     ? m_DeferredAcknowledgements.ToArray()
-                    : m_DeferredAcknowledgements.Where(r => r.Item1 <= DateTime.Now).ToArray();
+                    : m_DeferredAcknowledgements.Where(r => r.Item1 <= DateTime.UtcNow).ToArray();
             }
 
             foreach (var t in ready)
@@ -235,7 +235,7 @@ namespace Lykke.Messaging
             {
                 ready = all
                     ? m_ResubscriptionSchedule.ToArray()
-                    : m_ResubscriptionSchedule.Where(r => r.Item1 <= DateTime.Now).ToArray();
+                    : m_ResubscriptionSchedule.Where(r => r.Item1 <= DateTime.UtcNow).ToArray();
             }
 
             foreach (var t in ready)
@@ -272,7 +272,7 @@ namespace Lykke.Messaging
 
                 lock (m_DeferredAcknowledgements)
                 {
-                    m_DeferredAcknowledgements.Add(Tuple.Create<DateTime, Action>(DateTime.Now.AddMilliseconds(l), () => ack(b)));
+                    m_DeferredAcknowledgements.Add(Tuple.Create<DateTime, Action>(DateTime.UtcNow.AddMilliseconds(l), () => ack(b)));
                     m_DeferredAcknowledger.Schedule(l);
                 }
             };

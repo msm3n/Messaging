@@ -205,14 +205,14 @@ namespace Lykke.Messaging.Tests
                   DateTime acked = default(DateTime);
                   processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                       {
-                          processed = DateTime.Now;
+                          processed = DateTime.UtcNow;
                           acknowledge(1000, true);
                           Console.WriteLine(processed.ToString("HH:mm:ss.ffff") + " recieved");
                       },null,"ProcessingGroup", 0);
                   var acknowledged = new ManualResetEvent(false);
                   callback(new BinaryMessage {Bytes = new byte[0], Type = typeof (string).Name}, b =>
                   {
-                      acked = DateTime.Now;
+                      acked = DateTime.UtcNow;
                       acknowledged.Set();
                       Console.WriteLine(acked.ToString("HH:mm:ss.ffff") + " acknowledged");
                   });
@@ -262,12 +262,12 @@ namespace Lykke.Messaging.Tests
                  var subscription= processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                       {
                           acknowledge(60000, true);
-                          Console.WriteLine(DateTime.Now.ToString("HH:mm:ss.ffff") + " received");
+                          Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " received");
                       }, null, "ProcessingGroup", 0);
                   
                   callback(new BinaryMessage { Bytes = new byte[0], Type = typeof(string).Name }, b => {
                       acknowledged=true; 
-                      Console.WriteLine(DateTime.Now.ToString("HH:mm:ss.ffff") + " acknowledged"); 
+                      Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " acknowledged"); 
                   });
               }
 
@@ -295,7 +295,7 @@ namespace Lykke.Messaging.Tests
                 using (processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                 {
                     acknowledge(0, true);
-                    Console.WriteLine(DateTime.Now.ToString("HH:mm:ss.ffff") + " recieved");
+                    Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " recieved");
                 }, null, "ProcessingGroup", 0))
                 {
                     subscribed.WaitOne();
@@ -328,15 +328,15 @@ namespace Lykke.Messaging.Tests
                 var subscription =processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
                     {
                         acknowledge(0, true);
-                        Console.WriteLine(DateTime.Now.ToString("HH:mm:ss.ffff") + " recieved");
+                        Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " recieved");
                     }, null, "ProcessingGroup", 0);
 
                 //First attempt fails next one happends in 1000ms and should be successfull
                 Assert.That(subscribed.WaitOne(1200), Is.True, "Has not resubscribed after first subscription fail");
-                callback(new BinaryMessage {Bytes = new byte[0], Type = typeof (string).Name}, b => Console.WriteLine(DateTime.Now.ToString("HH:mm:ss.ffff") + " acknowledged"));
+                callback(new BinaryMessage {Bytes = new byte[0], Type = typeof (string).Name}, b => Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " acknowledged"));
                 Thread.Sleep(300);
 
-                Console.WriteLine("{0:H:mm:ss.fff} Emulating fail", DateTime.Now);
+                Console.WriteLine("{0:H:mm:ss.fff} Emulating fail", DateTime.UtcNow);
                 
                 emulateFail();
            
@@ -346,7 +346,7 @@ namespace Lykke.Messaging.Tests
                 
                 
                 Thread.Sleep(300);
-                Console.WriteLine("{0:H:mm:ss.fff} Emulating fail", DateTime.Now);
+                Console.WriteLine("{0:H:mm:ss.fff} Emulating fail", DateTime.UtcNow);
 
                 emulateFail();
                 subscription.Dispose();

@@ -14,7 +14,7 @@ namespace Lykke.Messaging.RabbitMq
 {
     internal class RabbitMqTransport : ITransport
     {
-        private static readonly Random m_Random = new Random((int)DateTime.Now.Ticks & 0x0000FFFF);
+        private static readonly Random m_Random = new Random((int)DateTime.UtcNow.Ticks & 0x0000FFFF);
 
         private readonly ILog _log;
         private readonly TimeSpan? m_NetworkRecoveryInterval;
