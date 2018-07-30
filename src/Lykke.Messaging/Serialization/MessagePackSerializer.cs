@@ -9,7 +9,7 @@ namespace Lykke.Messaging.Serialization
         private readonly ProtobufSerializer<TMessage> _protobufSerializer;
         private readonly ILog _log;
 
-        private bool _fallbackDeserializerWroks = false;
+        private bool _fallbackDeserializerWorks = false;
 
         [Obsolete]
         public MessagePackSerializer(ILog log)
@@ -37,15 +37,15 @@ namespace Lykke.Messaging.Serialization
             }
             catch (Exception ex)
             {
-                if (_fallbackDeserializerWroks)
+                if (_fallbackDeserializerWorks)
                     _log.Warning("MessagePack deserializer failed, using ProtoBuf", ex);
                 else
                     _log.Error(ex);
                 try
                 {
                     var result = _protobufSerializer.Deserialize(message);
-                    if (!_fallbackDeserializerWroks)
-                        _fallbackDeserializerWroks = true;
+                    if (!_fallbackDeserializerWorks)
+                        _fallbackDeserializerWorks = true;
                     return result;
                 }
                 catch (Exception)
