@@ -43,7 +43,7 @@ namespace Lykke.Messaging
             _log = log;
             m_TransportManager = new TransportManager(log, transportResolver, transportFactories);
             m_ProcessingGroupManager = new ProcessingGroupManager(log, m_TransportManager,processingGroups);
-            m_SerializationManager = new SerializationManager();
+            m_SerializationManager = new SerializationManager(log);
             m_RequestTimeoutManager = new SchedulingBackgroundWorker("RequestTimeoutManager", () => StopTimeoutedRequests());
             CreateMessagingHandle(() => StopTimeoutedRequests(true));
         }
@@ -67,7 +67,7 @@ namespace Lykke.Messaging
 
             m_TransportManager = new TransportManager(logFactory, transportResolver, transportFactories);
             m_ProcessingGroupManager = new ProcessingGroupManager(logFactory, m_TransportManager, processingGroups);
-            m_SerializationManager = new SerializationManager();
+            m_SerializationManager = new SerializationManager(logFactory);
             m_RequestTimeoutManager = new SchedulingBackgroundWorker("RequestTimeoutManager", () => StopTimeoutedRequests());
 
             CreateMessagingHandle(() => StopTimeoutedRequests(true));

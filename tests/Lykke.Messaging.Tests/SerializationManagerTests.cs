@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Lykke.Common.Log;
+using Lykke.Logs;
+using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.Serialization;
 using NUnit.Framework;
 using Rhino.Mocks;
@@ -10,11 +13,17 @@ namespace Lykke.Messaging.Tests
     [TestFixture]
     public class SerializationManagerTests
     {
+        private readonly ILogFactory _logFactory;
+
+        public SerializationManagerTests()
+        {
+            _logFactory = LogFactory.Create().AddUnbufferedConsole();
+        }
 
         [Test]
         public void RegisterSerializersTest()
         {
-            var serializationManager = new SerializationManager();
+            var serializationManager = new SerializationManager(_logFactory);
             var serializer = MockRepository.GenerateMock<IMessageSerializer<string>>();
             serializer.Expect(s => s.Serialize("test")).Return(new byte[] { 0x1 });
             serializer.Expect(s => s.Deserialize(new byte[] { 0x1 })).Return("test");
@@ -26,14 +35,12 @@ namespace Lykke.Messaging.Tests
             Assert.That(stringSerializer, Is.SameAs(serializer), "Wrong serializer was returned");
             Assert.That(serializationManager.Deserialize<string>("fake",new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
             Assert.That(serializationManager.Serialize("fake","test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
-
         }
 
-            
         [Test]
         public void RegisterSerializerFactoryTest()
         {
-            var serializationManager = new SerializationManager();
+            var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
             factory.Expect(f => f.SerializationFormat).Return("fake");
             var serializer = MockRepository.GenerateMock<IMessageSerializer<string>>();
@@ -49,11 +56,11 @@ namespace Lykke.Messaging.Tests
             Assert.That(serializationManager.Deserialize<string>("fake",new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
             Assert.That(serializationManager.Serialize("fake","test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
         }
-             
-        [Test]        
+
+        [Test]
         public void SerializerNotRegistedFailureTest()
         {
-            var serializationManager = new SerializationManager();
+            var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
             factory.Expect(f => f.SerializationFormat).Return("fake");
             factory.Expect(f => f.Create<int>()).Return(null);
@@ -61,12 +68,11 @@ namespace Lykke.Messaging.Tests
 
             Assert.That(() => serializationManager.ExtractSerializer<int>("fake"), Throws.TypeOf<ProcessingException>());
         }
-        
-             
-        [Test]        
+
+        [Test]
         public void SerializerNotCreatedByFactoryFailureTest()
         {
-            var serializationManager = new SerializationManager();
+            var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
             factory.Expect(f => f.SerializationFormat).Return("fake");
             factory.Expect(f => f.Create<string>()).Return(null);
@@ -74,17 +80,15 @@ namespace Lykke.Messaging.Tests
 
             Assert.That(() => serializationManager.ExtractSerializer<string>("fake"), Throws.TypeOf<ProcessingException>());
         }
-        
-              
+
         public void SerialiezerShouldBeCreatedOnlyOnceTest()
         {
-            var serializationManager = new SerializationManager();
+            var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
             Func<IMessageSerializer<string>> factoryMethod=() => MockRepository.GenerateMock<IMessageSerializer<string>>();
             factory.Expect(f => f.Create<string>()).Do(factoryMethod);
             serializationManager.RegisterSerializerFactory(factory);
             var mre = new ManualResetEvent(false);
-
 
             IMessageSerializer<string> serializer1=null;
             IMessageSerializer<string> serializer2=null;
@@ -104,7 +108,5 @@ namespace Lykke.Messaging.Tests
             Task.WaitAll(new[] { t1, t2 }, 10000);
             Assert.That(serializer1, Is.SameAs(serializer2), "Previousely created serializer was not reused");
         }
-
- 
     }
 }
