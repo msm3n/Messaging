@@ -205,7 +205,7 @@ namespace Lykke.Messaging.RabbitMq
             return binaryMessage;
         }
 
-        private IDisposable Subscribe(string destination, Action<IBasicProperties, byte[],Action<bool>> callback, string messageType)
+        private IDisposable Subscribe(string destination, Action<IBasicProperties, byte[], Action<bool>> callback, string messageType)
         {
             lock (m_Consumers)
             {

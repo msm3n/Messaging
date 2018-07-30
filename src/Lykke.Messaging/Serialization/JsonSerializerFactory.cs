@@ -2,9 +2,7 @@
 {
     public class JsonSerializerFactory : ISerializerFactory
     {
-        public string SerializationFormat {
-            get { return "json"; }
-        }
+        public SerializationFormat SerializationFormat => SerializationFormat.Json;
 
         public IMessageSerializer<TMessage> Create<TMessage>()
         {

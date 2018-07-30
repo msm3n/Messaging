@@ -9,7 +9,7 @@ namespace Lykke.Messaging.Serialization
     {
         private readonly List<ISerializerFactory> m_SerializerFactories = new List<ISerializerFactory>();
         private readonly ReaderWriterLockSlim m_SerializerLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-        private readonly Dictionary<Tuple<string,Type>, object> m_Serializers = new Dictionary<Tuple<string, Type>, object>();
+        private readonly Dictionary<Tuple<SerializationFormat, Type>, object> m_Serializers = new Dictionary<Tuple<SerializationFormat, Type>, object>();
 
         public SerializationManager()
         {
@@ -17,19 +17,10 @@ namespace Lykke.Messaging.Serialization
             RegisterSerializerFactory(new ProtobufSerializerFactory());
             RegisterSerializerFactory(new MessagePackSerializerFactory());
         }
-/*
-        public SerializationManager(params ISerializerFactory[] serializerFactories)
-        {
-            foreach (var serializerFactory in serializerFactories)
-            {
-                RegisterSerializerFactory(serializerFactory);
-            }
-        }
-*/
 
         #region ISerializationManager Members
 
-        public byte[] Serialize<TMessage>(string format, TMessage message)
+        public byte[] Serialize<TMessage>(SerializationFormat format, TMessage message)
         {
             return ExtractSerializer<TMessage>(format).Serialize(message);
         }
@@ -42,7 +33,7 @@ namespace Lykke.Messaging.Serialization
         /// <param name="message">The  message.</param>
         /// <returns></returns>
         /// <exception cref="NotSupportedException">Unknown business object type.</exception>
-        public TMessage Deserialize<TMessage>(string format, byte[] message)
+        public TMessage Deserialize<TMessage>(SerializationFormat format, byte[] message)
         {
             return ExtractSerializer<TMessage>(format).Deserialize(message);
         }
@@ -50,20 +41,17 @@ namespace Lykke.Messaging.Serialization
         public void RegisterSerializerFactory(ISerializerFactory serializerFactory)
         {
             if (serializerFactory == null) throw new ArgumentNullException("serializerFactory");
-            if(string.IsNullOrEmpty(serializerFactory.SerializationFormat))
-                throw new ArgumentException("serializerFactory SerializationFormat should return not empty string", "serializerFactory");
             lock (m_SerializerFactories)
             {
                 m_SerializerFactories.Add(serializerFactory);
             }
         }
 
-        public void RegisterSerializer(string format, Type targetType, object serializer)
+        public void RegisterSerializer(SerializationFormat format, Type targetType, object serializer)
         {
-            if (format == null) throw new ArgumentNullException("format");
             if (targetType == null) throw new ArgumentNullException("targetType");
             if (serializer == null) throw new ArgumentNullException("serializer");
-            var key = Tuple.Create(format.ToLower(), targetType);
+            var key = Tuple.Create(format, targetType);
             Type serializerType = serializer.GetType();
             m_SerializerLock.EnterUpgradeableReadLock();
             try
@@ -95,11 +83,11 @@ namespace Lykke.Messaging.Serialization
 
         #endregion
 
-        private IMessageSerializer<TMessage> getSerializer<TMessage>(string format)
+        private IMessageSerializer<TMessage> GetSerializer<TMessage>(SerializationFormat format)
         {
             object p;
             Type targetType = typeof(TMessage);
-            var key = Tuple.Create(format.ToLower(), targetType);
+            var key = Tuple.Create(format, targetType);
             if (m_Serializers.TryGetValue(key, out p))
             {
                 return p as IMessageSerializer<TMessage>;
@@ -113,12 +101,12 @@ namespace Lykke.Messaging.Serialization
         /// </summary>
         /// <typeparam name="TMessage">Type of message serializer should be extracted for</typeparam>
         /// <returns>Serializer for TMessage</returns>
-        internal IMessageSerializer<TMessage> ExtractSerializer<TMessage>(string format)
+        internal IMessageSerializer<TMessage> ExtractSerializer<TMessage>(SerializationFormat format)
         {
             m_SerializerLock.EnterReadLock();
             try
             {
-                var messageSerializer = getSerializer<TMessage>(format);
+                var messageSerializer = GetSerializer<TMessage>(format);
                 if (messageSerializer != null)
                     return messageSerializer;
             }
@@ -131,7 +119,7 @@ namespace Lykke.Messaging.Serialization
             lock (m_SerializerFactories)
             {
                 serializers = m_SerializerFactories
-                    .Where(f => f.SerializationFormat.ToLower() == format.ToLower())
+                    .Where(f => f.SerializationFormat == format)
                     .Select(f => f.Create<TMessage>())
                     .Where(s => s != null)
                     .ToArray();
@@ -146,7 +134,7 @@ namespace Lykke.Messaging.Serialization
                         try
                         {
                             // double check if no other threads have already registered serializer for TMessage
-                            var messageSerializer = getSerializer<TMessage>(format);
+                            var messageSerializer = GetSerializer<TMessage>(format);
                             if (messageSerializer != null)
                                 return messageSerializer;
 

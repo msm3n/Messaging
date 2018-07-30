@@ -87,7 +87,7 @@ namespace Lykke.Messaging.RabbitMq
                                     Model.BasicAck(deliveryTag, false);
                                 else
                                     //TODO: allow callback to decide whether to redeliver
-                                    Model.BasicNack(deliveryTag, false,true);
+                                    Model.BasicNack(deliveryTag, false, true);
                             });
                     }
                     catch (Exception e)

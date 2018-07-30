@@ -2,7 +2,7 @@
 {
     public class MessagePackSerializerFactory : ISerializerFactory
     {
-        public string SerializationFormat => "messagepack";
+        public SerializationFormat SerializationFormat => SerializationFormat.MessagePack;
 
         public IMessageSerializer<TMessage> Create<TMessage>()
         {

@@ -1,8 +1,10 @@
-﻿namespace Lykke.Messaging
+﻿using Lykke.Messaging.Serialization;
+
+namespace Lykke.Messaging
 {
     public interface ISerializerFactory
     {
-        string SerializationFormat { get; }
+        SerializationFormat SerializationFormat { get; }
         IMessageSerializer<TMessage> Create<TMessage>();
     }
 }

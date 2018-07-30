@@ -5,10 +5,7 @@ namespace Lykke.Messaging.Serialization
 {
     public class ProtobufSerializerFactory : ISerializerFactory
     {
-        public string SerializationFormat
-        {
-            get { return "protobuf"; }
-        }
+        public SerializationFormat SerializationFormat => SerializationFormat.ProtoBuf;
 
         public IMessageSerializer<TMessage> Create<TMessage>()
         {

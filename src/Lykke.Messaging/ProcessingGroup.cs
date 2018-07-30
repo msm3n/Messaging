@@ -27,7 +27,7 @@ namespace Lykke.Messaging
 
             m_SchedulingStrategy = (m_ConcurrencyLevel == 0) 
                 ? (ISchedulingStrategy) new CurrentThreadSchedulingStrategy()
-                : (ISchedulingStrategy) new QueuedSchedulingStrategy(m_ConcurrencyLevel,processingGroupInfo.QueueCapacity, $"ProcessingGroup '{Name}' thread");
+                : (ISchedulingStrategy) new QueuedSchedulingStrategy(m_ConcurrencyLevel, processingGroupInfo.QueueCapacity, $"ProcessingGroup '{Name}' thread");
         }
 
         public uint ConcurrencyLevel
@@ -60,7 +60,7 @@ namespace Lykke.Messaging
             if(m_IsDisposing)
                 throw new ObjectDisposedException("ProcessingGroup "+Name);
             var taskFactory = m_SchedulingStrategy.GetTaskFactory(priority);
-            var subscription=new SingleAssignmentDisposable();
+            var subscription = new SingleAssignmentDisposable();
             subscription.Disposable = messagingSession.Subscribe(destination, (message, ack) =>
             {
                 Interlocked.Increment(ref m_TasksInProgress);
@@ -83,7 +83,7 @@ namespace Lykke.Messaging
 
         public void Dispose()
         {
-            m_IsDisposing=true;
+            m_IsDisposing = true;
             while (Interlocked.Read(ref m_TasksInProgress)>0)
                 Thread.Sleep(100);
             m_SchedulingStrategy.Dispose();
