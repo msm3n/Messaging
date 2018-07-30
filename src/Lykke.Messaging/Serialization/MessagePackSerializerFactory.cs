@@ -9,7 +9,7 @@ namespace Lykke.Messaging.Serialization
         private readonly ILog _log;
         private readonly ILogFactory _logFactory;
 
-        public string SerializationFormat => "messagepack";
+        public SerializationFormat SerializationFormat => SerializationFormat.MessagePack;
 
         [Obsolete]
         public MessagePackSerializerFactory(ILog log)
