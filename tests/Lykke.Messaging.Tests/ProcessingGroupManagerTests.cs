@@ -9,6 +9,7 @@ using Lykke.Common.Log;
 using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.Contract;
+using Lykke.Messaging.Serialization;
 using Lykke.Messaging.Transports;
 using NUnit.Framework;
 using Rhino.Mocks;
@@ -215,7 +216,7 @@ namespace Lykke.Messaging.Tests
 
                   DateTime processed = default(DateTime);
                   DateTime acked = default(DateTime);
-                  processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
+                  processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                       {
                           processed = DateTime.UtcNow;
                           acknowledge(1000, true);
@@ -244,7 +245,7 @@ namespace Lykke.Messaging.Tests
             using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action))
             {
                 IDisposable subscription=null ;
-                subscription = processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
+                subscription = processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                 {
                     acknowledge(0,true);
                     finishProcessing.WaitOne();
@@ -271,7 +272,7 @@ namespace Lykke.Messaging.Tests
 
               using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action))
               {
-                 var subscription= processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
+                 var subscription= processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                       {
                           acknowledge(60000, true);
                           Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " received");
@@ -304,7 +305,7 @@ namespace Lykke.Messaging.Tests
             Action emulateFail=null;
             using ( var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => { }, action => emulateFail = emulateFail ?? action, onSubscribe))
             {
-                using (processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
+                using (processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                 {
                     acknowledge(0, true);
                     Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " recieved");
@@ -337,7 +338,7 @@ namespace Lykke.Messaging.Tests
 
             using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action, action => emulateFail = action, onSubscribe ))
             {
-                var subscription =processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
+                var subscription =processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                     {
                         acknowledge(0, true);
                         Console.WriteLine(DateTime.UtcNow.ToString("HH:mm:ss.ffff") + " recieved");
@@ -385,7 +386,7 @@ namespace Lykke.Messaging.Tests
                 var complete = new ManualResetEvent(false);
                 var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action);
                 Stopwatch sw = Stopwatch.StartNew();
-                processingGroupManager.Subscribe(new Endpoint("test", "test", false, "fake"), (message, acknowledge) =>
+                processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                     {
                         Thread.Sleep(rnd.Next(1,10));
                         acknowledge(delay.Key, true);

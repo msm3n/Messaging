@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Lykke.Messaging.Serialization;
+using System;
 
 namespace Lykke.Messaging.Contract
 {
@@ -10,7 +11,7 @@ namespace Lykke.Messaging.Contract
         private string m_TransportId;
         private Destination m_Destination;
         private bool m_SharedDestination;
-        private string m_SerializationFormat;
+        private SerializationFormat m_SerializationFormat;
 
         /// <summary>Gets or sets the transport id.</summary>
 		/// <value>The transport id.</value>
@@ -36,10 +37,10 @@ namespace Lykke.Messaging.Contract
         }
 
         /// <summary>Shared destination</summary>
-		public string SerializationFormat
+		public SerializationFormat SerializationFormat
         {
-            get { return m_SerializationFormat ?? "protobuf"; }
-            set { m_SerializationFormat = value ?? "protobuf"; }
+            get { return m_SerializationFormat; }
+            set { m_SerializationFormat = value; }
         }
 
         /// <summary>
@@ -49,7 +50,7 @@ namespace Lykke.Messaging.Contract
             string transportId,
             string destination,
             bool sharedDestination = false,
-            string serializationFormat = "protobuf")
+            SerializationFormat serializationFormat = SerializationFormat.ProtoBuf)
 		{
             m_TransportId = transportId;
 			m_Destination = destination ?? throw new ArgumentNullException("destination");
@@ -65,7 +66,7 @@ namespace Lykke.Messaging.Contract
             string publish,
             string subscribe,
             bool sharedDestination = false,
-            string serializationFormat = "protobuf")
+            SerializationFormat serializationFormat = SerializationFormat.ProtoBuf)
 		{
 		    m_TransportId = transportId;
 			m_Destination = new Destination {Publish = publish, Subscribe = subscribe};

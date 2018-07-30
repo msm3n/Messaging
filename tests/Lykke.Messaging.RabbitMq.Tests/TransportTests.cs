@@ -7,6 +7,7 @@ using Lykke.Common.Log;
 using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.Contract;
+using Lykke.Messaging.Serialization;
 using Lykke.Messaging.Transports;
 using NUnit.Framework;
 using RabbitMQ.Client;
@@ -410,10 +411,10 @@ namespace Lykke.Messaging.RabbitMq.Tests
             {
                 for (int i = 0; i < 100; i++)
                 {
-                    messagingEngine.Send(i, new Endpoint("test", TEST_EXCHANGE,serializationFormat:"json"));
+                    messagingEngine.Send(i, new Endpoint("test", TEST_EXCHANGE, serializationFormat: SerializationFormat.Json));
                 }
                
-                messagingEngine.Subscribe<int>(new Endpoint("test", TEST_QUEUE, serializationFormat: "json"), message =>
+                messagingEngine.Subscribe<int>(new Endpoint("test", TEST_QUEUE, serializationFormat: SerializationFormat.Json), message =>
                 {
                     Console.WriteLine(message+"\n");
                     Thread.Sleep(1000);
@@ -556,8 +557,8 @@ namespace Lykke.Messaging.RabbitMq.Tests
                 {"main", new TransportInfo("localhost1,localhost", "guest", "guest", "None", "RabbitMq")},
                 {"sendTransport", new TransportInfo("localhost", "guest", "guest", "None", "RabbitMq")}
             });
-            var endpoint = new Endpoint("main", TEST_EXCHANGE, TEST_QUEUE, true, "json");
-            var sendEndpoint = new Endpoint("sendTransport", TEST_EXCHANGE, TEST_QUEUE, true, "json");
+            var endpoint = new Endpoint("main", TEST_EXCHANGE, TEST_QUEUE, true, SerializationFormat.Json);
+            var sendEndpoint = new Endpoint("sendTransport", TEST_EXCHANGE, TEST_QUEUE, true, SerializationFormat.Json);
 
 
             using (var me = new MessagingEngine(_logFactory, transportResolver, new RabbitMqTransportFactory(false)))

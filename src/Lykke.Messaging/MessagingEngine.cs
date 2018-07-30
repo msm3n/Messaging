@@ -670,7 +670,7 @@ namespace Lykke.Messaging
             }
         }
 
-        private BinaryMessage SerializeMessage<TMessage>(string format,TMessage message)
+        private BinaryMessage SerializeMessage<TMessage>(SerializationFormat format,TMessage message)
         {
             var type = GetMessageType(typeof(TMessage));
             var bytes = m_SerializationManager.Serialize(format,message);

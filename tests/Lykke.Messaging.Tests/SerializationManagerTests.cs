@@ -27,14 +27,14 @@ namespace Lykke.Messaging.Tests
             var serializer = MockRepository.GenerateMock<IMessageSerializer<string>>();
             serializer.Expect(s => s.Serialize("test")).Return(new byte[] { 0x1 });
             serializer.Expect(s => s.Deserialize(new byte[] { 0x1 })).Return("test");
-            serializationManager.RegisterSerializer("fake",typeof(string),serializer);
+            serializationManager.RegisterSerializer(SerializationFormat.Json, typeof(string), serializer);
 
-            var stringSerializer = serializationManager.ExtractSerializer<string>("fake");
+            var stringSerializer = serializationManager.ExtractSerializer<string>(SerializationFormat.Json);
             
             Assert.That(stringSerializer, Is.Not.Null, "serializer was not cretaed");
             Assert.That(stringSerializer, Is.SameAs(serializer), "Wrong serializer was returned");
-            Assert.That(serializationManager.Deserialize<string>("fake",new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
-            Assert.That(serializationManager.Serialize("fake","test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
+            Assert.That(serializationManager.Deserialize<string>(SerializationFormat.Json, new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
+            Assert.That(serializationManager.Serialize(SerializationFormat.Json, "test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
         }
 
         [Test]
@@ -42,19 +42,19 @@ namespace Lykke.Messaging.Tests
         {
             var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            factory.Expect(f => f.SerializationFormat).Return("fake");
+            factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
             var serializer = MockRepository.GenerateMock<IMessageSerializer<string>>();
             serializer.Expect(s => s.Serialize("test")).Return(new byte[] {0x1});
             serializer.Expect(s => s.Deserialize(new byte[] { 0x1 })).Return("test");
             factory.Expect(f => f.Create<string>()).Return(serializer);
             serializationManager.RegisterSerializerFactory(factory);
 
-            var stringSerializer = serializationManager.ExtractSerializer<string>("fake");
+            var stringSerializer = serializationManager.ExtractSerializer<string>(SerializationFormat.Json);
             
             Assert.That(stringSerializer,Is.Not.Null,"serializer was not cretaed");
             Assert.That(stringSerializer,Is.SameAs(serializer),"Wrong serializer was returned");
-            Assert.That(serializationManager.Deserialize<string>("fake",new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
-            Assert.That(serializationManager.Serialize("fake","test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
+            Assert.That(serializationManager.Deserialize<string>(SerializationFormat.Json, new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
+            Assert.That(serializationManager.Serialize(SerializationFormat.Json, "test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
         }
 
         [Test]
@@ -62,11 +62,11 @@ namespace Lykke.Messaging.Tests
         {
             var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            factory.Expect(f => f.SerializationFormat).Return("fake");
+            factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
             factory.Expect(f => f.Create<int>()).Return(null);
             serializationManager.RegisterSerializerFactory(factory);
 
-            Assert.That(() => serializationManager.ExtractSerializer<int>("fake"), Throws.TypeOf<ProcessingException>());
+            Assert.That(() => serializationManager.ExtractSerializer<int>(SerializationFormat.Json), Throws.TypeOf<ProcessingException>());
         }
 
         [Test]
@@ -74,11 +74,11 @@ namespace Lykke.Messaging.Tests
         {
             var serializationManager = new SerializationManager(_logFactory);
             var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            factory.Expect(f => f.SerializationFormat).Return("fake");
+            factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
             factory.Expect(f => f.Create<string>()).Return(null);
             serializationManager.RegisterSerializerFactory(factory);
 
-            Assert.That(() => serializationManager.ExtractSerializer<string>("fake"), Throws.TypeOf<ProcessingException>());
+            Assert.That(() => serializationManager.ExtractSerializer<string>(SerializationFormat.Json), Throws.TypeOf<ProcessingException>());
         }
 
         public void SerialiezerShouldBeCreatedOnlyOnceTest()
@@ -96,12 +96,12 @@ namespace Lykke.Messaging.Tests
             var t1 = Task.Factory.StartNew(() =>
             {
                 mre.WaitOne();
-                serializer1 = serializationManager.ExtractSerializer<string>("fake");
+                serializer1 = serializationManager.ExtractSerializer<string>(SerializationFormat.Json);
             });
             var t2 = Task.Factory.StartNew(() =>
             {
                 mre.WaitOne();
-                serializer2 = serializationManager.ExtractSerializer<string>("fake");
+                serializer2 = serializationManager.ExtractSerializer<string>(SerializationFormat.Json);
             });
             mre.Set();
 

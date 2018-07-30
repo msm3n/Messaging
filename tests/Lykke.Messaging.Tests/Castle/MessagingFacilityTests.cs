@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using Castle.Facilities.Logging;
-using Castle.Facilities.Startable;
 using Castle.MicroKernel.Registration;
 using Castle.MicroKernel.Resolvers.SpecializedResolvers;
 using Castle.Windsor;
@@ -10,7 +9,7 @@ using Lykke.Messaging.Castle;
 using Lykke.Messaging.Configuration;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
-using Lykke.Messaging;
+using Lykke.Messaging.Serialization;
 using NUnit.Framework;
 using Rhino.Mocks;
 
@@ -28,8 +27,8 @@ namespace Lykke.Messaging.Tests.Castle
         [SetUp]
         public void SetUp()
         {
-            m_Endpoint1 = new Endpoint("transport-id-1", "first-destination",serializationFormat:"json");
-            m_Endpoint2 = new Endpoint("transport-id-2", "second-destination", serializationFormat: "json");
+            m_Endpoint1 = new Endpoint("transport-id-1", "first-destination", serializationFormat: SerializationFormat.Json);
+            m_Endpoint2 = new Endpoint("transport-id-2", "second-destination", serializationFormat: SerializationFormat.Json);
             m_Transport1 = new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory");
             m_Transport2 = new TransportInfo("transport-2", "login2", "pwd1", "None", "InMemory");
             m_MessagingConfiguration = new MockMessagingConfiguration(
@@ -43,7 +42,6 @@ namespace Lykke.Messaging.Tests.Castle
                         {"endpoint-1", m_Endpoint1},
                         {"endpoint-2", m_Endpoint2},
                     });
-
         }
 
         [Test]
@@ -151,12 +149,12 @@ namespace Lykke.Messaging.Tests.Castle
                     .WithTransport("TRANSPORT_ID1", new TransportInfo("BROKER", "USERNAME", "PASSWORD", "MachineName", "InMemory"))
                     .WithTransportFactory(new InMemoryTransportFactory()));
                 var factory = MockRepository.GenerateMock<ISerializerFactory>();
-                factory.Expect(f => f.SerializationFormat).Return("fake");
+                factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
                 factory.Expect(f => f.Create<string>()).Return(new FakeStringSerializer());
                 container.Register(Component.For<ISerializerFactory>().Instance(factory));
                 var engine = container.Resolve<IMessagingEngine>();
                 var ev = new ManualResetEvent(false);
-                var endpoint = new Endpoint("TRANSPORT_ID1", "destination", serializationFormat: "fake");
+                var endpoint = new Endpoint("TRANSPORT_ID1", "destination", serializationFormat: SerializationFormat.Json);
                 using (engine.Subscribe<string>(endpoint, s =>
                 {
                     Console.WriteLine(s);
@@ -169,24 +167,22 @@ namespace Lykke.Messaging.Tests.Castle
 
                 Console.WriteLine(engine.GetStatistics());
             }
-
         }
     }
 
-        public class HandlerDependency
-        {
-        }
+    public class HandlerDependency
+    {
+    }
 
     public class HandlerWithDependency : Handler
     {
-
         public HandlerWithDependency(HandlerDependency dependency)
         {
         }
     }
 
-    public class Handler{
-    
+    public class Handler
+    {
         public Endpoint SomeEndpoint { get; set; }
         readonly static List<object> m_Handled = new List<object>();
         private static int m_HandledUnknown;
@@ -194,7 +190,6 @@ namespace Lykke.Messaging.Tests.Castle
         public Handler()
         {
         }
-
 
         public Handler(Endpoint someEndpoint)
         {
