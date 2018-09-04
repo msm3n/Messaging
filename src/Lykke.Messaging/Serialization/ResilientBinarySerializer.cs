@@ -133,9 +133,9 @@ namespace Lykke.Messaging.Serialization
                 {
                     throw;
                 }
-                catch (Exception) when (fmt != _formatPriorityList.Last())
+                catch (Exception ex) when (fmt != _formatPriorityList.Last())
                 {
-                    _log.WriteWarning(nameof(Deserialize), message, $"Unable to deserialize the message using {fmt} formatter. Will try other(s). Error message: {ex.Message}.");
+                    _log.WriteWarning(nameof(Deserialize), message, $"Unable to deserialize the message using {fmt} formatter. Will try other(s).", ex);
                 }
                 // Otherwise, we give up and propagate the exception higher.
             }
