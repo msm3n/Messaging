@@ -1,23 +1,32 @@
-﻿using System.IO;
-using ProtoBuf;
+﻿using System;
+using Common.Log;
+using Lykke.Common.Log;
 
 namespace Lykke.Messaging.Serialization
 {
     internal class ProtobufSerializer<TMessage> : IMessageSerializer<TMessage>
     {
+        private readonly ResilientBinarySerializer<TMessage> _serializer;
+
+        [Obsolete("Please, use the overload which consumes ILogFactory")]
+        public ProtobufSerializer(ILog log)
+        {
+            _serializer = new ResilientBinarySerializer<TMessage>(log, SerializationFormat.ProtoBuf);
+        }
+
+        public ProtobufSerializer(ILogFactory logFactory)
+        {
+            _serializer = new ResilientBinarySerializer<TMessage>(logFactory, SerializationFormat.ProtoBuf);
+        }
+
         public byte[] Serialize(TMessage message)
         {
-            var s = new MemoryStream();
-            Serializer.Serialize(s, message);
-            return s.ToArray();
+            return _serializer.Serialize(message);
         }
 
         public TMessage Deserialize(byte[] message)
         {
-            var memStream = new MemoryStream();
-            memStream.Write(message, 0, message.Length);
-            memStream.Seek(0, SeekOrigin.Begin);
-            return Serializer.Deserialize<TMessage>(memStream);
+            return _serializer.Deserialize(message);
         }
     }
 }

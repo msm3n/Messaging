@@ -17,14 +17,14 @@ namespace Lykke.Messaging.Serialization
         public SerializationManager(ILog log)
         {
             RegisterSerializerFactory(new JsonSerializerFactory());
-            RegisterSerializerFactory(new ProtobufSerializerFactory());
+            RegisterSerializerFactory(new ProtobufSerializerFactory(log));
             RegisterSerializerFactory(new MessagePackSerializerFactory(log));
         }
 
         public SerializationManager(ILogFactory logFactory)
         {
             RegisterSerializerFactory(new JsonSerializerFactory());
-            RegisterSerializerFactory(new ProtobufSerializerFactory());
+            RegisterSerializerFactory(new ProtobufSerializerFactory(logFactory));
             RegisterSerializerFactory(new MessagePackSerializerFactory(logFactory));
         }
 
