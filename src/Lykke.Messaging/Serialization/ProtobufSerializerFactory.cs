@@ -25,15 +25,10 @@ namespace Lykke.Messaging.Serialization
         }
 
         public IMessageSerializer<TMessage> Create<TMessage>()
-        {
-            //TODO: may affect performance
-            if (typeof(TMessage).GetCustomAttributes(typeof(ProtoContractAttribute), false).Any())
-            {
-                return _logFactory != null
-                ? new ProtobufSerializer<TMessage>(_logFactory)
-                : new ProtobufSerializer<TMessage>(_log);
-            }
-            return null;
+        {            
+            return _logFactory != null
+            ? new ProtobufSerializer<TMessage>(_logFactory)
+            : new ProtobufSerializer<TMessage>(_log);
         }
     }
 }
