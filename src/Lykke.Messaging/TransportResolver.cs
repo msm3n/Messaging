@@ -16,7 +16,9 @@ namespace Lykke.Messaging
         //TODO: need to register transports in some better way
         public TransportResolver(IDictionary<string, TransportInfo> transports, IDictionary<string, JailStrategy> jailStrategies = null)
         {
-            if (transports == null) throw new ArgumentNullException("transports");
+            if (transports == null)
+                throw new ArgumentNullException(nameof(transports));
+
             m_Transports = new Dictionary<string, TransportInfo>(transports);
 
             if (jailStrategies != null)
@@ -25,7 +27,7 @@ namespace Lykke.Messaging
                 {
                     if (m_JailStrategies.ContainsKey(jailStrategy.Key))
                         throw new ArgumentOutOfRangeException(
-                            "jailStrategies", $"Jail strategy with key {jailStrategy.Key} already registered.");
+                            nameof(jailStrategies), $"Jail strategy with key {jailStrategy.Key} already registered.");
 
                     m_JailStrategies.Add(jailStrategy.Key, jailStrategy.Value);
                 }
@@ -33,10 +35,9 @@ namespace Lykke.Messaging
 
             foreach (var transportInfo in m_Transports)
             {
-                JailStrategy strategy;
-                if(!m_JailStrategies.TryGetValue(transportInfo.Value.JailStrategyName??"None", out strategy))
+                if(!m_JailStrategies.TryGetValue(transportInfo.Value.JailStrategyName ?? "None", out var strategy))
                     throw new ArgumentOutOfRangeException(
-                        "jailStrategies",
+                        nameof(jailStrategies),
                         string.Format(
                             "Incorrect jail strategy with name {1} set for transport {0}. Make sure jail strategy {1} is registered for transport configuration.",
                             transportInfo.Key,
@@ -50,8 +51,7 @@ namespace Lykke.Messaging
 
         public TransportInfo GetTransport(string transportId)
         {
-            TransportInfo transport;
-            return m_Transports.TryGetValue(transportId, out transport) ? transport : null;
+            return m_Transports.TryGetValue(transportId, out var transport) ? transport : null;
         }
 
         #endregion

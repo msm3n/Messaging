@@ -47,7 +47,7 @@
         {
             if (Subscribe == Publish)
                 return "["+Subscribe+"]";
-            return string.Format("[s:{0}, p:{1}]", Subscribe, Publish);
+            return $"[s:{Subscribe}, p:{Publish}]";
         }
     }
 }

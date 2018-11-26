@@ -1,12 +1,11 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using Lykke.Common.Log;
 using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.Serialization;
+using Moq;
 using NUnit.Framework;
-using Rhino.Mocks;
 
 namespace Lykke.Messaging.Tests
 {
@@ -21,78 +20,51 @@ namespace Lykke.Messaging.Tests
         }
 
         [Test]
-        public void RegisterSerializersTest()
+        public void JsonSerializerIsPresentByDefaultTest()
         {
             var serializationManager = new SerializationManager(_logFactory);
-            var serializer = MockRepository.GenerateMock<IMessageSerializer<string>>();
-            serializer.Expect(s => s.Serialize("test")).Return(new byte[] { 0x1 });
-            serializer.Expect(s => s.Deserialize(new byte[] { 0x1 })).Return("test");
-            serializationManager.RegisterSerializer(SerializationFormat.Json, typeof(string), serializer);
 
-            var stringSerializer = serializationManager.ExtractSerializer<string>(SerializationFormat.Json);
-            
-            Assert.That(stringSerializer, Is.Not.Null, "serializer was not cretaed");
-            Assert.That(stringSerializer, Is.SameAs(serializer), "Wrong serializer was returned");
-            Assert.That(serializationManager.Deserialize<string>(SerializationFormat.Json, new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
-            Assert.That(serializationManager.Serialize(SerializationFormat.Json, "test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
+            Assert.NotNull(serializationManager.ExtractSerializer<int>(SerializationFormat.Json));
         }
 
         [Test]
-        public void RegisterSerializerFactoryTest()
+        public void MessagePackSerializerIsPresentByDefaultTest()
         {
             var serializationManager = new SerializationManager(_logFactory);
-            var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
-            var serializer = MockRepository.GenerateMock<IMessageSerializer<string>>();
-            serializer.Expect(s => s.Serialize("test")).Return(new byte[] {0x1});
-            serializer.Expect(s => s.Deserialize(new byte[] { 0x1 })).Return("test");
-            factory.Expect(f => f.Create<string>()).Return(serializer);
-            serializationManager.RegisterSerializerFactory(factory);
 
-            var stringSerializer = serializationManager.ExtractSerializer<string>(SerializationFormat.Json);
-            
-            Assert.That(stringSerializer,Is.Not.Null,"serializer was not cretaed");
-            Assert.That(stringSerializer,Is.SameAs(serializer),"Wrong serializer was returned");
-            Assert.That(serializationManager.Deserialize<string>(SerializationFormat.Json, new byte[] { 0x1 }), Is.EqualTo("test"), "Serializer was not used for deserialization");
-            Assert.That(serializationManager.Serialize(SerializationFormat.Json, "test"), Is.EqualTo(new byte[] { 0x1 }), "Serializer was not used for deserialization");
+            Assert.NotNull(serializationManager.ExtractSerializer<int>(SerializationFormat.MessagePack));
         }
 
         [Test]
-        public void SerializerNotRegistedFailureTest()
+        public void ProtoBufSerializerIsPresentByDefaultTest()
         {
             var serializationManager = new SerializationManager(_logFactory);
-            var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
-            factory.Expect(f => f.Create<int>()).Return(null);
-            serializationManager.RegisterSerializerFactory(factory);
 
-            Assert.That(() => serializationManager.ExtractSerializer<int>(SerializationFormat.Json), Throws.TypeOf<ProcessingException>());
+            Assert.NotNull(serializationManager.ExtractSerializer<int>(SerializationFormat.ProtoBuf));
         }
 
         [Test]
-        public void SerializerNotCreatedByFactoryFailureTest()
+        public void AnotherJsonSerializerRegistrationFailureTest()
         {
             var serializationManager = new SerializationManager(_logFactory);
-            var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            factory.Expect(f => f.SerializationFormat).Return(SerializationFormat.Json);
-            factory.Expect(f => f.Create<string>()).Return(null);
-            serializationManager.RegisterSerializerFactory(factory);
+            var serializer = new Mock<IMessageSerializer<int>>();
+            var factory = new Mock<ISerializerFactory>();
+            factory.Setup(f => f.SerializationFormat).Returns(SerializationFormat.Json);
+            factory.Setup(f => f.Create<int>()).Returns(serializer.Object);
+            serializationManager.RegisterSerializerFactory(factory.Object);
 
-            Assert.That(() => serializationManager.ExtractSerializer<string>(SerializationFormat.Json), Throws.TypeOf<ProcessingException>());
+            Assert.Throws<ProcessingException>(() => serializationManager.ExtractSerializer<int>(SerializationFormat.Json));
         }
 
+        [Test]
         public void SerialiezerShouldBeCreatedOnlyOnceTest()
         {
             var serializationManager = new SerializationManager(_logFactory);
-            var factory = MockRepository.GenerateMock<ISerializerFactory>();
-            Func<IMessageSerializer<string>> factoryMethod=() => MockRepository.GenerateMock<IMessageSerializer<string>>();
-            factory.Expect(f => f.Create<string>()).Do(factoryMethod);
-            serializationManager.RegisterSerializerFactory(factory);
             var mre = new ManualResetEvent(false);
 
-            IMessageSerializer<string> serializer1=null;
-            IMessageSerializer<string> serializer2=null;
-            
+            IMessageSerializer<string> serializer1 = null;
+            IMessageSerializer<string> serializer2 = null;
+
             var t1 = Task.Factory.StartNew(() =>
             {
                 mre.WaitOne();

@@ -16,6 +16,6 @@ namespace Lykke.Messaging.Utils
             };
 
             return ret;
-        } 
+        }
     }
 }

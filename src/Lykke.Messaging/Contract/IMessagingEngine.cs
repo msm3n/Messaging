@@ -10,7 +10,7 @@ namespace Lykke.Messaging.Contract
     /// </summary>
     /// <param name="delay">number of ms to wait before reporting ack/nack to broker</param>
     /// <param name="acknowledge">if set to <c>true</c> ack , if set to <c>false</c> nack.</param>
-    public delegate void AcknowledgeDelegate(long delay,bool acknowledge);
+    public delegate void AcknowledgeDelegate(long delay, bool acknowledge);
 
     /// <summary>
     /// Message processing callback
