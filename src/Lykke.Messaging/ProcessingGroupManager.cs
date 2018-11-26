@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Disposables;
@@ -20,8 +21,8 @@ namespace Lykke.Messaging
         private readonly List<Tuple<DateTime, Action>> m_ResubscriptionSchedule = new List<Tuple<DateTime, Action>>();
         private readonly SchedulingBackgroundWorker m_DeferredAcknowledger;
         private readonly SchedulingBackgroundWorker m_Resubscriber;
-        private readonly Dictionary<string, ProcessingGroup> m_ProcessingGroups=new Dictionary<string, ProcessingGroup>();
-        private readonly Dictionary<string, ProcessingGroupInfo> m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>();
+        private readonly ConcurrentDictionary<string, ProcessingGroup> m_ProcessingGroups = new ConcurrentDictionary<string, ProcessingGroup>();
+        private readonly ConcurrentDictionary<string, ProcessingGroupInfo> m_ProcessingGroupInfos;
 
         private volatile bool m_IsDisposing;
 
@@ -34,7 +35,7 @@ namespace Lykke.Messaging
             IDictionary<string, ProcessingGroupInfo> processingGroups = null,
             int resubscriptionTimeout = 60000)
         {
-            m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
+            m_ProcessingGroupInfos = new ConcurrentDictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
             m_TransportManager = transportManager;
             _log = log;
             ResubscriptionTimeout = resubscriptionTimeout;
@@ -49,35 +50,26 @@ namespace Lykke.Messaging
             int resubscriptionTimeout = 60000)
         {
             if (logFactory == null)
-            {
                 throw new ArgumentNullException(nameof(logFactory));
-            }
 
             _log = logFactory.CreateLog(this);
 
-            m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
+            m_ProcessingGroupInfos = new ConcurrentDictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
             m_TransportManager = transportManager;
             ResubscriptionTimeout = resubscriptionTimeout;
             m_DeferredAcknowledger = new SchedulingBackgroundWorker("DeferredAcknowledgement", () => ProcessDeferredAcknowledgements());
             m_Resubscriber = new SchedulingBackgroundWorker("Resubscription", () => ProcessResubscription());
         }
 
-
-        public void AddProcessingGroup(string name,ProcessingGroupInfo info)
+        public void AddProcessingGroup(string name, ProcessingGroupInfo info)
         {
-            lock (m_ProcessingGroups)
-            {
-                if (m_ProcessingGroups.ContainsKey(name))
-                    throw new InvalidOperationException($"Can not add processing group '{name}'. It already exists.");
-
-                m_ProcessingGroupInfos.Add(name, info);
-            }
+            if (!m_ProcessingGroupInfos.TryAdd(name, info))
+                throw new InvalidOperationException($"Can not add processing group '{name}'. It already exists.");
         }
 
         public bool GetProcessingGroupInfo(string name,out ProcessingGroupInfo  groupInfo)
         {
-            ProcessingGroupInfo info;
-            if (m_ProcessingGroupInfos.TryGetValue(name, out info))
+            if (m_ProcessingGroupInfos.TryGetValue(name, out var info))
             {
                 groupInfo = new ProcessingGroupInfo(info);
                 return true;
@@ -94,32 +86,35 @@ namespace Lykke.Messaging
             string processingGroup,
             int priority)
         {
-            if (string.IsNullOrEmpty(processingGroup)) throw new ArgumentNullException("processingGroup","should be not empty string");
+            if (string.IsNullOrEmpty(processingGroup))
+                throw new ArgumentNullException(nameof(processingGroup), "should be not empty string");
             if (m_IsDisposing)
                 throw new ObjectDisposedException(GetType().Name);
+
             var subscriptionHandler = new MultipleAssignmentDisposable();
             Action<int> doSubscribe = null;
             doSubscribe = attemptNumber =>
             {
-                string processingGroupName=null;
+                string processingGroupName = null;
                 if (subscriptionHandler.IsDisposed)
                     return;
-               try
+
+                try
                 {
                     var group = GetProcessingGroup(processingGroup);
-                    processingGroupName = @group.Name;
-                    _log.WriteInfoAsync(
+                    processingGroupName = group.Name;
+                    _log.WriteInfo(
                         nameof(ProcessingGroupManager),
                         nameof(Subscribe),
                         attemptNumber > 0
                             ? $"Resubscribing for endpoint {endpoint} within processing group '{processingGroupName}'. Attempt# {attemptNumber}"
                             : $"Subscribing for endpoint {endpoint} within processing group '{processingGroupName}'");
  
-                    var sessionName = GetSessionName(@group, priority);
+                    var sessionName = GetSessionName(group, priority);
 
-                    var session = m_TransportManager.GetMessagingSession(endpoint.TransportId, sessionName, Helper.CallOnlyOnce(() =>
+                    var session = m_TransportManager.GetMessagingSession(endpoint, sessionName, Helper.CallOnlyOnce(() =>
                     {
-                        _log.WriteInfoAsync(
+                        _log.WriteInfo(
                             nameof(ProcessingGroupManager),
                             nameof(Subscribe),
                             $"Subscription for endpoint {endpoint} within processing group '{processingGroupName}' failure detected. Attempting subscribe again.");
@@ -142,7 +137,7 @@ namespace Lykke.Messaging
                     catch
                     {
                     }
-                    _log.WriteInfoAsync(
+                    _log.WriteInfo(
                         nameof(ProcessingGroupManager),
                         nameof(Subscribe),
                         $"Subscribed for endpoint {endpoint} in processingGroup '{processingGroupName}' using session {sessionName}");
@@ -174,33 +169,24 @@ namespace Lykke.Messaging
         {
             if (processingGroup.ConcurrencyLevel == 0)
                 return processingGroup.Name;
-            return string.Format("{0} priority{1}", processingGroup.Name, priority);
+            return $"{processingGroup.Name} priority{priority}";
         }
 
         private ProcessingGroup GetProcessingGroup(string processingGroup)
         {
-            ProcessingGroup @group;
-            lock (m_ProcessingGroups)
-            {
-                if (m_ProcessingGroups.TryGetValue(processingGroup, out @group)) 
-                    return @group;
+            if (m_ProcessingGroups.TryGetValue(processingGroup, out var group))
+                return group;
 
-                ProcessingGroupInfo info;
-                if (!m_ProcessingGroupInfos.TryGetValue(processingGroup, out info))
-                {
-                    info = new ProcessingGroupInfo();
-                    m_ProcessingGroupInfos.Add(processingGroup, info);
-                }
-                @group = new ProcessingGroup(processingGroup, info);
-                m_ProcessingGroups.Add(processingGroup, @group);
-            }
-            return @group;
+            var info = m_ProcessingGroupInfos.GetOrAdd(processingGroup, new ProcessingGroupInfo());
+            group = m_ProcessingGroups.GetOrAdd(processingGroup, new ProcessingGroup(processingGroup, info));
+
+            return group;
         }
 
         public void Send(Endpoint endpoint, BinaryMessage message, int ttl, string processingGroup)
         {
             var group = GetProcessingGroup(processingGroup);
-            var session = m_TransportManager.GetMessagingSession(endpoint.TransportId, GetSessionName(group, 0));
+            var session = m_TransportManager.GetMessagingSession(endpoint, GetSessionName(group, 0));
 
             group.Send(session,endpoint.Destination.Publish, message, ttl);
         }
@@ -270,7 +256,7 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteInfoAsync(
+                    _log.WriteInfo(
                         nameof(ProcessingGroupManager),
                         nameof(ProcessResubscription),
                         $"Resubscription failed. Will retry later: {e.Message}");

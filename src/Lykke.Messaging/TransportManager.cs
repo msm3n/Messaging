@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using Common.Log;
@@ -12,7 +12,7 @@ namespace Lykke.Messaging
 {
     internal class TransportManager : ITransportManager
     {
-        private readonly Dictionary<TransportInfo, ResolvedTransport> m_Transports = new Dictionary<TransportInfo, ResolvedTransport>();
+        private readonly ConcurrentDictionary<TransportInfo, ResolvedTransport> m_Transports = new ConcurrentDictionary<TransportInfo, ResolvedTransport>();
         private readonly ILog _log;
         private readonly ITransportResolver m_TransportResolver;
         private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
@@ -24,7 +24,7 @@ namespace Lykke.Messaging
         {
             m_TransportFactories = transportFactories.Concat(new[] {new InMemoryTransportFactory()}).ToArray();
             _log = log;
-            m_TransportResolver = transportResolver ?? throw new ArgumentNullException("transportResolver");
+            m_TransportResolver = transportResolver ?? throw new ArgumentNullException(nameof(transportResolver));
         }
 
         public TransportManager(ILogFactory logFactory, ITransportResolver transportResolver, params ITransportFactory[] transportFactories)
@@ -34,88 +34,65 @@ namespace Lykke.Messaging
             m_TransportResolver = transportResolver ?? throw new ArgumentNullException(nameof(transportResolver));
         }
 
-        public ITransportResolver TransportResolver
-        {
-            get { return m_TransportResolver; }
-        }
+        public ITransportResolver TransportResolver => m_TransportResolver;
 
         #region IDisposable Members
 
         public void Dispose()
         {
             m_IsDisposed.Set();
-            lock (m_Transports)
+            foreach (var transport in m_Transports.Values.Distinct())
             {
-                foreach (var transport in m_Transports.Values.Distinct())
-                {
-                    transport.Dispose();
-                }
-                m_Transports.Clear();
+                transport.Dispose();
             }
+            m_Transports.Clear();
         }
 
         #endregion
 
         public event TransportEventHandler TransportEvents;
 
-        public IMessagingSession GetMessagingSession(string transportId, string name, Action onFailure = null)
+        public IMessagingSession GetMessagingSession(Endpoint endpoint, string name, Action onFailure = null)
         {
-            ResolvedTransport transport = ResolveTransport(transportId);
+            ResolvedTransport transport = ResolveTransport(endpoint.TransportId);
 
             try
             {
-                return transport.GetSession(transportId, name, onFailure);
+                return transport.GetSession(endpoint, name, onFailure);
             }
             catch (Exception e)
             {
-                throw new TransportException(string.Format("Failed to create processing group {0} on transport {1}", name, transportId), e);
+                throw new TransportException($"Failed to create processing group {name} on transport {endpoint.TransportId}", e);
             }
         }
 
         internal ResolvedTransport ResolveTransport(string transportId)
         {
             if (m_IsDisposed.WaitOne(0))
-                throw new ObjectDisposedException(string.Format("Can not create transport {0}. TransportManager instance is disposed", transportId));
+                throw new ObjectDisposedException($"Can not create transport {transportId}. TransportManager instance is disposed");
 
             var transportInfo = m_TransportResolver.GetTransport(transportId);
-
             if (transportInfo == null)
-                throw new ApplicationException(string.Format("Transport '{0}' is not resolvable", transportId));
+                throw new ApplicationException($"Transport '{transportId}' is not resolvable");
+
             var factory = m_TransportFactories.FirstOrDefault(f => f.Name == transportInfo.Messaging);
             if (factory == null)
-                throw new ApplicationException(
-                    string.Format("Can not create transport '{0}', {1} messaging is not supported", transportId, transportInfo.Messaging));
+                throw new ApplicationException($"Can not create transport '{transportId}', {transportInfo.Messaging} messaging is not supported");
 
-            ResolvedTransport transport;
-
-            if (!m_Transports.TryGetValue(transportInfo, out transport))
-            {
-                lock (m_Transports)
-                {
-                    if (!m_Transports.TryGetValue(transportInfo, out transport))
-                    {
-                        transport = _logFactory == null ? 
-                            new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory) : 
-                            new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory);
-                        m_Transports.Add(transportInfo, transport);
-                    }
-                }
-            }
+            var transport = m_Transports.GetOrAdd(transportInfo, _logFactory == null
+                ? new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory)
+                : new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory));
             return transport;
         }
 
         internal virtual void ProcessTransportFailure(TransportInfo transportInfo)
         {
-            ResolvedTransport transport;
-            lock (m_Transports)
-            {
-                if (!m_Transports.TryGetValue(transportInfo, out transport))
-                    return;
-                m_Transports.Remove(transportInfo);
-            }
+            if (!m_Transports.TryRemove(transportInfo, out var transport))
+                return;
 
             var handler = TransportEvents;
-            if (handler == null) return;
+            if (handler == null)
+                return;
 
             lock (transport)
             {
@@ -145,8 +122,7 @@ namespace Lykke.Messaging
             }
             catch (Exception e)
             {
-                throw new TransportException(
-                    string.Format("Destination {0} is not properly configured on transport {1}", destination, transportId), e);
+                throw new TransportException($"Destination {destination} is not properly configured on transport {transportId}", e);
             }
         }
     }

@@ -18,8 +18,7 @@ namespace Lykke.Messaging.InMemory
             {
                 lock (m_Topics)
                 {
-                    Subject<BinaryMessage> topic;
-                    if (!m_Topics.TryGetValue(name, out topic))
+                    if (!m_Topics.TryGetValue(name, out var topic))
                     {
                         topic = new Subject<BinaryMessage>();
                         m_Topics[name] = topic;
@@ -41,7 +40,7 @@ namespace Lykke.Messaging.InMemory
             }
         }
 
-        public IMessagingSession CreateSession(Action onFailure)
+        public IMessagingSession CreateSession(Action onFailure, Destination destination = default(Destination))
         {
             var session = new InMemorySession(this);
             lock (m_Sessions)
@@ -65,11 +64,9 @@ namespace Lykke.Messaging.InMemory
         {
             lock (m_Topics)
             {
-                Subject<BinaryMessage> topic;
-                if (m_Topics.TryGetValue(name, out topic))
-                {
-                    throw new ArgumentException("topic already exists", "name");
-                }
+                if (m_Topics.TryGetValue(name, out var topic))
+                    throw new ArgumentException("topic already exists", nameof(name));
+
                 topic = new Subject<BinaryMessage>();
                 m_Topics[name] = topic;
                 return Disposable.Create(() =>
