@@ -5,7 +5,7 @@ namespace Lykke.Messaging.Transports
 {
     public interface ITransport : IDisposable
     {
-        IMessagingSession CreateSession(Action onFailure);
+        IMessagingSession CreateSession(Action onFailure, Destination destination = default(Destination));
         bool VerifyDestination(
             Destination destination,
             EndpointUsage usage,
