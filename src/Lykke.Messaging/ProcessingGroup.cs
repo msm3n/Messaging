@@ -13,10 +13,10 @@ namespace Lykke.Messaging
 
         private volatile bool m_IsDisposing;
 
-        private long m_TasksInProgress = 0;
-        private long m_ReceivedMessages = 0;
-        private long m_ProcessedMessages = 0;
-        private long m_SentMessages = 0;
+        private long m_TasksInProgress;
+        private long m_ReceivedMessages;
+        private long m_ProcessedMessages;
+        private long m_SentMessages;
 
         public string Name { get; private set; }
 
@@ -27,28 +27,16 @@ namespace Lykke.Messaging
 
             m_SchedulingStrategy = (m_ConcurrencyLevel == 0) 
                 ? (ISchedulingStrategy) new CurrentThreadSchedulingStrategy()
-                : (ISchedulingStrategy) new QueuedSchedulingStrategy(m_ConcurrencyLevel, processingGroupInfo.QueueCapacity, $"ProcessingGroup '{Name}' thread");
+                : new QueuedSchedulingStrategy(m_ConcurrencyLevel, processingGroupInfo.QueueCapacity, $"ProcessingGroup '{Name}' thread");
         }
 
-        public uint ConcurrencyLevel
-        {
-            get { return m_ConcurrencyLevel; }
-        }
+        public uint ConcurrencyLevel => m_ConcurrencyLevel;
 
-        public long ReceivedMessages
-        {
-            get { return Interlocked.Read(ref m_ReceivedMessages); }
-        }
+        public long ReceivedMessages => Interlocked.Read(ref m_ReceivedMessages);
 
-        public long ProcessedMessages
-        {
-            get { return Interlocked.Read(ref m_ProcessedMessages); }
-        }
+        public long ProcessedMessages => Interlocked.Read(ref m_ProcessedMessages);
 
-        public long SentMessages
-        {
-            get { return Interlocked.Read(ref m_SentMessages); }
-        }
+        public long SentMessages => Interlocked.Read(ref m_SentMessages);
 
         public IDisposable Subscribe(
             IMessagingSession messagingSession,
@@ -58,26 +46,33 @@ namespace Lykke.Messaging
             int priority)
         {
             if(m_IsDisposing)
-                throw new ObjectDisposedException("ProcessingGroup "+Name);
+                throw new ObjectDisposedException("ProcessingGroup " + Name);
+
             var taskFactory = m_SchedulingStrategy.GetTaskFactory(priority);
             var subscription = new SingleAssignmentDisposable();
-            subscription.Disposable = messagingSession.Subscribe(destination, (message, ack) =>
-            {
-                Interlocked.Increment(ref m_TasksInProgress);
-                taskFactory.StartNew(() =>
+            subscription.Disposable = messagingSession.Subscribe(
+                destination,
+                (message, ack) =>
                 {
-                    Interlocked.Increment(ref m_ReceivedMessages);
-                    //if subscription is disposed unack message immediately
-                    if (subscription.IsDisposed)
-                        ack(false);
-                    else
+                    Interlocked.Increment(ref m_TasksInProgress);
+                    taskFactory.StartNew(() =>
                     {
-                        callback(message, ack);
-                        Interlocked.Increment(ref m_ProcessedMessages);
-                    }
-                    Interlocked.Decrement(ref m_TasksInProgress);
-                },TaskCreationOptions.HideScheduler);
-            }, messageType);
+                        Interlocked.Increment(ref m_ReceivedMessages);
+                        //if subscription is disposed unack message immediately
+                        if (subscription.IsDisposed)
+                        {
+                            ack(false);
+                        }
+                        else
+                        {
+                            callback(message, ack);
+                            Interlocked.Increment(ref m_ProcessedMessages);
+                        }
+                        Interlocked.Decrement(ref m_TasksInProgress);
+                    },
+                    TaskCreationOptions.HideScheduler);
+                },
+                messageType);
             return subscription;
         }
 

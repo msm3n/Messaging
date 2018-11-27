@@ -24,7 +24,7 @@ namespace Lykke.Messaging
         {
             m_TransportFactories = transportFactories.Concat(new[] {new InMemoryTransportFactory()}).ToArray();
             _log = log;
-            m_TransportResolver = transportResolver ?? throw new ArgumentNullException("transportResolver");
+            m_TransportResolver = transportResolver ?? throw new ArgumentNullException(nameof(transportResolver));
         }
 
         public TransportManager(ILogFactory logFactory, ITransportResolver transportResolver, params ITransportFactory[] transportFactories)
@@ -34,10 +34,7 @@ namespace Lykke.Messaging
             m_TransportResolver = transportResolver ?? throw new ArgumentNullException(nameof(transportResolver));
         }
 
-        public ITransportResolver TransportResolver
-        {
-            get { return m_TransportResolver; }
-        }
+        public ITransportResolver TransportResolver => m_TransportResolver;
 
         #region IDisposable Members
 
@@ -68,35 +65,32 @@ namespace Lykke.Messaging
             }
             catch (Exception e)
             {
-                throw new TransportException(string.Format("Failed to create processing group {0} on transport {1}", name, transportId), e);
+                throw new TransportException($"Failed to create processing group {name} on transport {transportId}", e);
             }
         }
 
         internal ResolvedTransport ResolveTransport(string transportId)
         {
             if (m_IsDisposed.WaitOne(0))
-                throw new ObjectDisposedException(string.Format("Can not create transport {0}. TransportManager instance is disposed", transportId));
+                throw new ObjectDisposedException($"Can not create transport {transportId}. TransportManager instance is disposed");
 
             var transportInfo = m_TransportResolver.GetTransport(transportId);
 
             if (transportInfo == null)
-                throw new ApplicationException(string.Format("Transport '{0}' is not resolvable", transportId));
+                throw new ApplicationException($"Transport '{transportId}' is not resolvable");
             var factory = m_TransportFactories.FirstOrDefault(f => f.Name == transportInfo.Messaging);
             if (factory == null)
-                throw new ApplicationException(
-                    string.Format("Can not create transport '{0}', {1} messaging is not supported", transportId, transportInfo.Messaging));
+                throw new ApplicationException($"Can not create transport '{transportId}', {transportInfo.Messaging} messaging is not supported");
 
-            ResolvedTransport transport;
-
-            if (!m_Transports.TryGetValue(transportInfo, out transport))
+            if (!m_Transports.TryGetValue(transportInfo, out var transport))
             {
                 lock (m_Transports)
                 {
                     if (!m_Transports.TryGetValue(transportInfo, out transport))
                     {
-                        transport = _logFactory == null ? 
-                            new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory) : 
-                            new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory);
+                        transport = _logFactory == null
+                            ? new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory)
+                            : new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory);
                         m_Transports.Add(transportInfo, transport);
                     }
                 }
@@ -145,8 +139,7 @@ namespace Lykke.Messaging
             }
             catch (Exception e)
             {
-                throw new TransportException(
-                    string.Format("Destination {0} is not properly configured on transport {1}", destination, transportId), e);
+                throw new TransportException($"Destination {destination} is not properly configured on transport {transportId}", e);
             }
         }
     }

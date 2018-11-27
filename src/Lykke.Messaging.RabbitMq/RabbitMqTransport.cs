@@ -158,7 +158,7 @@ namespace Lykke.Messaging.RabbitMq
                 {
                     var connection = factories[i].CreateConnection($"{_appName} {_appVersion}");
                     if (logConnection)
-                        _log.WriteInfoAsync(
+                        _log.WriteInfo(
                             nameof(RabbitMqTransport),
                             nameof(CreateConnection),
                             $"Created rmq connection to {factories[i].Endpoint.HostName}.");

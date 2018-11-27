@@ -148,10 +148,6 @@ namespace Lykke.Messaging.Tests.Castle
                 container.AddFacility<MessagingFacility>(f => f
                     .WithTransport("TRANSPORT_ID1", new TransportInfo("BROKER", "USERNAME", "PASSWORD", "MachineName", "InMemory"))
                     .WithTransportFactory(new InMemoryTransportFactory()));
-                var factory = new Mock<ISerializerFactory>();
-                factory.Setup(f => f.SerializationFormat).Returns(SerializationFormat.Json);
-                factory.Setup(f => f.Create<string>()).Returns(new FakeStringSerializer());
-                container.Register(Component.For<ISerializerFactory>().Instance(factory.Object));
                 var engine = container.Resolve<IMessagingEngine>();
                 var ev = new ManualResetEvent(false);
                 var endpoint = new Endpoint("TRANSPORT_ID1", "destination", serializationFormat: SerializationFormat.Json);

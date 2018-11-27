@@ -6,8 +6,8 @@ using Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Serialization;
+using Moq;
 using NUnit.Framework;
-using Rhino.Mocks;
 
 namespace Lykke.Messaging.Tests
 {
@@ -30,10 +30,14 @@ namespace Lykke.Messaging.Tests
 
         private static ITransportResolver MockTransportResolver()
         {
-            var resolver = MockRepository.GenerateMock<ITransportResolver>();
-            resolver.Expect(r => r.GetTransport(TransportConstants.TRANSPORT_ID1)).Return(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
-            resolver.Expect(r => r.GetTransport(TransportConstants.TRANSPORT_ID2)).Return(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
-            return resolver;
+            var resolver = new Mock<ITransportResolver>();
+            resolver
+                .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID1))
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
+            resolver
+                .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID2))
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
+            return resolver.Object;
         }
        
         [Test]

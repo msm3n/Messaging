@@ -6,8 +6,8 @@ using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
+using Moq;
 using NUnit.Framework;
-using Rhino.Mocks;
 
 namespace Lykke.Messaging.Tests
 {
@@ -41,34 +41,43 @@ namespace Lykke.Messaging.Tests
 
         private static ITransportResolver MockTransportResolver()
         {
-            var resolver = MockRepository.GenerateMock<ITransportResolver>();
-            resolver.Expect(r => r.GetTransport(TransportConstants.TRANSPORT_ID1)).Return(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory") );
-            resolver.Expect(r => r.GetTransport(TransportConstants.TRANSPORT_ID2)).Return(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory") );
-            resolver.Expect(r => r.GetTransport(TransportConstants.TRANSPORT_ID3)).Return(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "Mock") );
-            return resolver;
+            var resolver = new Mock<ITransportResolver>();
+            resolver
+                .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID1))
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory") );
+            resolver
+                .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID2))
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory") );
+            resolver
+                .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID3))
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "Mock") );
+            return resolver.Object;
         }
 
         [Test]
         public void MessagingSessionFailureCallbackTest()
         {
             var resolver = MockTransportResolver();
-            var factory=MockRepository.GenerateMock<ITransportFactory>();
-            var transport = MockRepository.GenerateMock<ITransport>();
-            Action creaedSessionOnFailure = () => { Console.WriteLine("!!"); };
-            transport.Expect(t => t.CreateSession(null)).IgnoreArguments().WhenCalled(invocation => creaedSessionOnFailure = (Action) invocation.Arguments[0]);
-            factory.Expect(f => f.Create(null, null, null)).IgnoreArguments().Return(transport);
-            factory.Expect(f => f.Name).Return("Mock");
-            var transportManager = new TransportManager(_logFactory, resolver, factory);
+            Action createdSessionOnFailure = () => { Console.WriteLine("!!"); };
+            var transport = new Mock<ITransport>();
+            transport
+                .Setup(t => t.CreateSession(It.IsAny<Action>()))
+                .Callback<Action>((invocation) => createdSessionOnFailure = invocation);
+            var factory = new Mock<ITransportFactory>();
+            factory.Setup(f => f.Create(It.IsAny<TransportInfo>(), It.IsAny<Action>())).Returns(transport.Object);
+            factory.Setup(f => f.Name).Returns("Mock");
+            var transportManager = new TransportManager(_logFactory, resolver, factory.Object);
             int i = 0;
-           
-            transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID3, "test", () => { Interlocked.Increment(ref i); });
-            creaedSessionOnFailure();
-            creaedSessionOnFailure();
-            
-            Assert.That(i,Is.Not.EqualTo(0),"Session failure callback was not called");
-            Assert.That(i, Is.EqualTo(1), "Session  failure callback was called twice");
 
+            transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID3, "test", () => { Interlocked.Increment(ref i); });
+
+            createdSessionOnFailure();
+            createdSessionOnFailure();
+
+            Assert.That(i, Is.Not.EqualTo(0),"Session failure callback was not called");
+            Assert.That(i, Is.EqualTo(1), "Session  failure callback was called twice");
         }
+
         [Test]
         public void ConcurrentTransportResolutionTest()
         {
@@ -80,14 +89,12 @@ namespace Lykke.Messaging.Tests
 
             foreach (var i in Enumerable.Range(1, 10))
             {
-                int threadNumber = i;
                 var thread = new Thread(() =>
                 {
                     start.WaitOne();
                     try
                     {
-                        var transport = transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID1, "test");
-                        Console.WriteLine(threadNumber + ". " + transport);
+                        transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID1, "test");
                         Interlocked.Increment(ref attemptCount);
                     }
                     catch (Exception)
@@ -98,7 +105,6 @@ namespace Lykke.Messaging.Tests
                 thread.Start();
             }
 
-
             start.Set();
             while (attemptCount < 10)
             {
@@ -106,8 +112,6 @@ namespace Lykke.Messaging.Tests
             }
 
             Assert.That(errorCount, Is.EqualTo(0));
-
-
         }
     }
 

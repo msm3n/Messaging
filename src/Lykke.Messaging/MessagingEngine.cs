@@ -91,8 +91,8 @@ namespace Lykke.Messaging
         }
 
         public int ResubscriptionTimeout { 
-            get { return m_ProcessingGroupManager.ResubscriptionTimeout; }
-            set { m_ProcessingGroupManager.ResubscriptionTimeout = value; }
+            get => m_ProcessingGroupManager.ResubscriptionTimeout;
+            set => m_ProcessingGroupManager.ResubscriptionTimeout = value;
         }
 
         public void AddProcessingGroup(string name,ProcessingGroupInfo info)
@@ -110,15 +110,9 @@ namespace Lykke.Messaging
             return m_ProcessingGroupManager.GetStatistics();
         }
 
-        internal TransportManager TransportManager
-        {
-            get { return m_TransportManager; }
-        }
+        internal TransportManager TransportManager => m_TransportManager;
 
-        public ISerializationManager SerializationManager
-        {
-            get { return m_SerializationManager; }
-        }
+        public ISerializationManager SerializationManager => m_SerializationManager;
 
         #region IMessagingEngine Members
 
