@@ -8,42 +8,21 @@ namespace Lykke.Messaging.Contract
 	/// </summary>
 	public struct Endpoint
 	{
-        private string m_TransportId;
-        private Destination m_Destination;
-        private bool m_SharedDestination;
-        private SerializationFormat m_SerializationFormat;
-
-        /// <summary>Gets or sets the transport id.</summary>
+	    /// <summary>Gets or sets the transport id.</summary>
 		/// <value>The transport id.</value>
-		public string TransportId
-        {
-            get { return m_TransportId; }
-            set { m_TransportId = value; }
-        }
+		public string TransportId { get; set; }
 
-        /// <summary>Gets or sets the destination.</summary>
+	    /// <summary>Gets or sets the destination.</summary>
 		/// <value>The destination.</value>
-        public Destination Destination
-        {
-            get { return m_Destination; }
-            set { m_Destination = value; }
-        }
+        public Destination Destination { get; set; }
 
-        /// <summary>Shared destination</summary>
-		public bool SharedDestination
-        {
-            get { return m_SharedDestination; }
-            set { m_SharedDestination = value; }
-        }
+	    /// <summary>Shared destination</summary>
+		public bool SharedDestination { get; set; }
 
-        /// <summary>Shared destination</summary>
-		public SerializationFormat SerializationFormat
-        {
-            get { return m_SerializationFormat; }
-            set { m_SerializationFormat = value; }
-        }
+	    /// <summary>Shared destination</summary>
+		public SerializationFormat SerializationFormat { get; set; }
 
-        /// <summary>
+	    /// <summary>
         /// 
         /// </summary>
         public Endpoint(
@@ -52,10 +31,10 @@ namespace Lykke.Messaging.Contract
             bool sharedDestination = false,
             SerializationFormat serializationFormat = SerializationFormat.ProtoBuf)
 		{
-            m_TransportId = transportId;
-			m_Destination = destination ?? throw new ArgumentNullException("destination");
-			m_SharedDestination = sharedDestination;
-		    m_SerializationFormat = serializationFormat;
+            TransportId = transportId;
+			Destination = destination ?? throw new ArgumentNullException(nameof(destination));
+			SharedDestination = sharedDestination;
+		    SerializationFormat = serializationFormat;
 		}
 
         /// <summary>
@@ -68,10 +47,10 @@ namespace Lykke.Messaging.Contract
             bool sharedDestination = false,
             SerializationFormat serializationFormat = SerializationFormat.ProtoBuf)
 		{
-		    m_TransportId = transportId;
-			m_Destination = new Destination {Publish = publish, Subscribe = subscribe};
-			m_SharedDestination = sharedDestination;
-		    m_SerializationFormat = serializationFormat;
+		    TransportId = transportId;
+			Destination = new Destination {Publish = publish, Subscribe = subscribe};
+			SharedDestination = sharedDestination;
+		    SerializationFormat = serializationFormat;
 		}
 
 	    public override string ToString()

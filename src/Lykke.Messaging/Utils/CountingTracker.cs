@@ -32,7 +32,7 @@ namespace Lykke.Core.Utils
 
         private void Decrement()
         {
-            if(Interlocked.Decrement(ref m_Count)==0)
+            if (Interlocked.Decrement(ref m_Count) == 0)
                 m_IsEmpty.Set();
         }
 

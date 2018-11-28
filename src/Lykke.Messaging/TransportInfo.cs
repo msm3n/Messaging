@@ -11,11 +11,14 @@ namespace Lykke.Messaging
         public JailStrategy JailStrategy { get; internal set; }
         public string Messaging { get; private set; }
 
-        public TransportInfo(string broker, string login, string password, string jailStrategyName, string messaging="InMemory")
+        public TransportInfo(string broker, string login, string password, string jailStrategyName, string messaging = "InMemory")
         {
-            if (string.IsNullOrEmpty((broker ?? "").Trim())) throw new ArgumentException("broker should be not empty string", "broker");
-            if (string.IsNullOrEmpty((login ?? "").Trim())) throw new ArgumentException("login should be not empty string", "login");
-            if (string.IsNullOrEmpty((password ?? "").Trim())) throw new ArgumentException("password should be not empty string", "password");
+            if (string.IsNullOrEmpty((broker ?? "").Trim()))
+                throw new ArgumentException("broker should be not empty string", nameof(broker));
+            if (string.IsNullOrEmpty((login ?? "").Trim()))
+                throw new ArgumentException("login should be not empty string", nameof(login));
+            if (string.IsNullOrEmpty((password ?? "").Trim()))
+                throw new ArgumentException("password should be not empty string", nameof(password));
             Broker = broker;
             Login = login;
             Password = password;
@@ -65,7 +68,7 @@ namespace Lykke.Messaging
 
         public override string ToString()
         {
-            return string.Format("Broker: {0}, Login: {1}", Broker, Login);
+            return $"Broker: {Broker}, Login: {Login}";
         }
     }
 }

@@ -1,15 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
 using NUnit.Framework;
-using ThreadState = System.Threading.ThreadState;
 
 namespace Lykke.Messaging.Tests
 {

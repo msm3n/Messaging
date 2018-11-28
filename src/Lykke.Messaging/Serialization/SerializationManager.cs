@@ -50,7 +50,8 @@ namespace Lykke.Messaging.Serialization
 
         public void RegisterSerializerFactory(ISerializerFactory serializerFactory)
         {
-            if (serializerFactory == null) throw new ArgumentNullException("serializerFactory");
+            if (serializerFactory == null)
+                throw new ArgumentNullException(nameof(serializerFactory));
             lock (m_SerializerFactories)
             {
                 m_SerializerFactories.Add(serializerFactory);
@@ -59,18 +60,19 @@ namespace Lykke.Messaging.Serialization
 
         public void RegisterSerializer(SerializationFormat format, Type targetType, object serializer)
         {
-            if (targetType == null) throw new ArgumentNullException("targetType");
-            if (serializer == null) throw new ArgumentNullException("serializer");
+            if (targetType == null)
+                throw new ArgumentNullException(nameof(targetType));
+            if (serializer == null)
+                throw new ArgumentNullException(nameof(serializer));
             var key = Tuple.Create(format, targetType);
             Type serializerType = serializer.GetType();
             m_SerializerLock.EnterUpgradeableReadLock();
             try
             {
-                object oldSerializer;
-                if (m_Serializers.TryGetValue(key, out oldSerializer))
+                if (m_Serializers.TryGetValue(key, out var oldSerializer))
                 {
                     throw new InvalidOperationException(
-                        String.Format(
+                        string.Format(
                             "Can not register '{0}' as {1} serializer for type '{2}'. '{2}' is already assigned with serializer '{3}'",
                             serializerType,format, targetType, oldSerializer.GetType()));
                 }
@@ -95,13 +97,10 @@ namespace Lykke.Messaging.Serialization
 
         private IMessageSerializer<TMessage> GetSerializer<TMessage>(SerializationFormat format)
         {
-            object p;
             Type targetType = typeof(TMessage);
             var key = Tuple.Create(format, targetType);
-            if (m_Serializers.TryGetValue(key, out p))
-            {
+            if (m_Serializers.TryGetValue(key, out var p))
                 return p as IMessageSerializer<TMessage>;
-            }
             return null;
         }
 

@@ -39,9 +39,7 @@ namespace Lykke.Messaging.InMemory
                 .Subscribe(message => callback(message, b =>
                 {
                     if (!b)
-                    {
                         ThreadPool.QueueUserWorkItem(state => subject.OnNext(message));
-                    }
                 }));
             m_Subscriptions.Add(subscribe);
             return subscribe;
@@ -68,14 +66,12 @@ namespace Lykke.Messaging.InMemory
         {
             var subscription = Subscribe(destination, (request, acknowledge) =>
             {
-                string replyTo;
-                request.Headers.TryGetValue("ReplyTo", out replyTo);
+                request.Headers.TryGetValue("ReplyTo", out var replyTo);
                 if (replyTo == null)
                     return;
 
                 var response = handler(request);
-                string correlationId;
-                if (request.Headers.TryGetValue("ReplyTo", out correlationId))
+                if (request.Headers.TryGetValue("ReplyTo", out var correlationId))
                     response.Headers["CorrelationId"] = correlationId;
                 Send(replyTo.ToString(), response, 0);
             }, messageType);
@@ -86,6 +82,7 @@ namespace Lykke.Messaging.InMemory
         {
             if (m_IsDisposed)
                 return;
+
             var finishedProcessing = new ManualResetEvent(false);
             m_Subscriptions.Dispose();
             m_Scheduler.Schedule(() => finishedProcessing.Set());

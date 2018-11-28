@@ -1,6 +1,6 @@
 ﻿using Lykke.Messaging.Serialization;
+using Moq;
 using NUnit.Framework;
-using Rhino.Mocks;
 
 namespace Lykke.Messaging.Tests
 {
@@ -11,9 +11,9 @@ namespace Lykke.Messaging.Tests
         public void DeserializeTest()
         {
             var bytes = new byte[] {0x1};
-            var manager = MockRepository.GenerateMock<ISerializationManager>();
-            manager.Expect(m => m.Deserialize<string>(SerializationFormat.Json, bytes)).Return("test");
-            var deserialized = manager.Deserialize(SerializationFormat.Json, bytes, typeof (string));
+            var manager = new Mock<ISerializationManager>();
+            manager.Setup(m => m.Deserialize<string>(SerializationFormat.Json, bytes)).Returns("test");
+            var deserialized = manager.Object.Deserialize(SerializationFormat.Json, bytes, typeof (string));
             Assert.That(deserialized, Is.EqualTo("test"));
         }
 
@@ -21,9 +21,9 @@ namespace Lykke.Messaging.Tests
         public void SerializeTest()
         {
             var bytes = new byte[] {0x1};
-            var manager = MockRepository.GenerateMock<ISerializationManager>();
-            manager.Expect(m => m.Serialize(SerializationFormat.Json, "test")).Return(bytes);
-            var serialized = manager.SerializeObject(SerializationFormat.Json, "test");
+            var manager = new Mock<ISerializationManager>();
+            manager.Setup(m => m.Serialize(SerializationFormat.Json, "test")).Returns(bytes);
+            var serialized = manager.Object.SerializeObject(SerializationFormat.Json, "test");
             Assert.That(serialized, Is.EqualTo(bytes));
         }
     }
