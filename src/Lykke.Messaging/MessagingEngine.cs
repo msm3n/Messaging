@@ -117,7 +117,7 @@ namespace Lykke.Messaging
 
         #region IMessagingEngine Members
 
-        public  bool VerifyEndpoint(
+        public bool VerifyEndpoint(
             Endpoint endpoint,
             EndpointUsage usage,
             bool configureIfRequired,
@@ -129,6 +129,31 @@ namespace Lykke.Messaging
                 usage,
                 configureIfRequired,
                 out error);
+        }
+
+        public Dictionary<Endpoint, string> VerifyEndpoints(
+            EndpointUsage usage,
+            IEnumerable<Endpoint> endpoints,
+            bool configureIfRequired)
+        {
+            var result = new Dictionary<Endpoint, string>();
+
+            var byTransport = endpoints.GroupBy(e => e.TransportId);
+
+            foreach (var transportEndpoints in byTransport)
+            {
+                var transportEndpointsErrors = m_TransportManager.VerifyDestinations(
+                    transportEndpoints.Key,
+                    transportEndpoints,
+                    usage,
+                    configureIfRequired);
+                foreach (var transportVerification in transportEndpointsErrors)
+                {
+                    result[transportVerification.Key] = transportVerification.Value;
+                }
+            }
+
+            return result;
         }
 
         public Destination CreateTemporaryDestination(string transportId, string processingGroup)

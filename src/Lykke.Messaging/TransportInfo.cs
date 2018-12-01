@@ -4,14 +4,20 @@ namespace Lykke.Messaging
 {
     public class TransportInfo
     {
-        public string Broker { get; private set; }
-        public string Login { get; private set; }
-        public string Password { get; private set; }
-        public string JailStrategyName { get; private set; }
-        public JailStrategy JailStrategy { get; internal set; }
-        public string Messaging { get; private set; }
+        public string Broker { get; }
+        public string Login { get; }
+        public string Password { get; }
+        public string JailStrategyName { get; }
+        public string Messaging { get; }
 
-        public TransportInfo(string broker, string login, string password, string jailStrategyName, string messaging = "InMemory")
+        public JailStrategy JailStrategy { get; internal set; }
+
+        public TransportInfo(
+            string broker,
+            string login,
+            string password,
+            string jailStrategyName,
+            string messaging = "InMemory")
         {
             if (string.IsNullOrEmpty((broker ?? "").Trim()))
                 throw new ArgumentException("broker should be not empty string", nameof(broker));
@@ -19,6 +25,7 @@ namespace Lykke.Messaging
                 throw new ArgumentException("login should be not empty string", nameof(login));
             if (string.IsNullOrEmpty((password ?? "").Trim()))
                 throw new ArgumentException("password should be not empty string", nameof(password));
+
             Broker = broker;
             Login = login;
             Password = password;
@@ -47,9 +54,12 @@ namespace Lykke.Messaging
 
         public override bool Equals(object obj)
         {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != this.GetType()) return false;
+            if (ReferenceEquals(null, obj))
+                return false;
+            if (ReferenceEquals(this, obj))
+                return true;
+            if (obj.GetType() != this.GetType())
+                return false;
             return Equals((TransportInfo) obj);
         }
 

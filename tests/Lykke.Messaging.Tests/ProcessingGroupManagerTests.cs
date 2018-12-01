@@ -59,7 +59,8 @@ namespace Lykke.Messaging.Tests
                     }));
             var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager);
             var endpoint = new Endpoint {Destination = "queue", TransportId = "transport-1"};
-            var session = transportManager.GetMessagingSession(endpoint.TransportId, "pg"); var usedThreads = new List<int>();
+            var session = transportManager.GetMessagingSession(endpoint, "pg");
+            var usedThreads = new List<int>();
             var subscription = processingGroupManager.Subscribe(endpoint,
                 (message, action) =>
                 {
@@ -94,7 +95,7 @@ namespace Lykke.Messaging.Tests
                 }
             });
             var endpoint = new Endpoint {Destination = "queue", TransportId = "transport-1"};
-            var processingGroup = transportManager.GetMessagingSession(endpoint.TransportId, "pg");
+            var processingGroup = transportManager.GetMessagingSession(endpoint, "pg");
             var usedThreads = new List<int>();
             var subscription = processingGroupManager.Subscribe(
                 endpoint,
@@ -142,7 +143,7 @@ namespace Lykke.Messaging.Tests
 
             var e = new ManualResetEvent(false);
             var endpoint = new Endpoint {Destination = "queue", TransportId = "transport-1"};
-            var processingGroup = transportManager.GetMessagingSession(endpoint.TransportId, "pg");
+            var processingGroup = transportManager.GetMessagingSession(endpoint, "pg");
             var childTaskFinishedBeforeHandler = false;
             var subscription = processingGroupManager.Subscribe(
                 endpoint,
@@ -449,8 +450,8 @@ namespace Lykke.Messaging.Tests
                 })
                 .Returns(new Mock<IDisposable>().Object);
             transportManager
-                .Setup(t => t.GetMessagingSession(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Action>()))
-                .Callback<string, string, Action>((trId, name, invocation) => setOnFail(invocation))
+                .Setup(t => t.GetMessagingSession(It.IsAny<Endpoint>(), It.IsAny<string>(), It.IsAny<Action>()))
+                .Callback<Endpoint, string, Action>((endpoint, name, invocation) => setOnFail(invocation))
                 .Returns(session.Object);
             return new ProcessingGroupManager(
                 _logFactory,

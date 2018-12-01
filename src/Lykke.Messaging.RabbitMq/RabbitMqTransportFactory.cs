@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Common.Log;
 using Lykke.Common.Log;
@@ -14,11 +15,10 @@ namespace Lykke.Messaging.RabbitMq
         private readonly ILogFactory _logFactory;
         private readonly bool m_ShuffleBrokers;
         private readonly TimeSpan? m_AutomaticRecoveryInterval;
+        private readonly Dictionary<TransportInfo, RabbitMqTransport> _transports = new Dictionary<TransportInfo, RabbitMqTransport>();
+        private readonly object _sync = new object();
 
-        public string Name
-        {
-            get { return "RabbitMq"; }
-        }
+        public string Name => "RabbitMq";
 
         /// <summary>
         /// Creates new instance of <see cref="RabbitMqTransportFactory"/> with RabbitMQ native automatic recovery disabled
@@ -84,19 +84,31 @@ namespace Lykke.Messaging.RabbitMq
 
         public ITransport Create(TransportInfo transportInfo, Action onFailure)
         {
-            var brokers = transportInfo.Broker
-                .Split(',')
-                .Select(b => b.Trim())
-                .ToArray();
+            if (_transports.TryGetValue(transportInfo, out var result))
+                return result;
 
-            return new RabbitMqTransport(
-                _logFactory,
-                brokers,
-                transportInfo.Login,
-                transportInfo.Password,
-                m_ShuffleBrokers,
-                m_AutomaticRecoveryInterval
-            );
+            lock (_sync)
+            {
+                if (_transports.TryGetValue(transportInfo, out result))
+                    return result;
+
+                var brokers = transportInfo.Broker
+                    .Split(',')
+                    .Select(b => b.Trim())
+                    .ToArray();
+
+                result = new RabbitMqTransport(
+                    _logFactory,
+                    brokers,
+                    transportInfo.Login,
+                    transportInfo.Password,
+                    m_ShuffleBrokers,
+                    m_AutomaticRecoveryInterval
+                );
+                _transports.Add(transportInfo, result);
+            }
+
+            return result;
         }
     }
 }

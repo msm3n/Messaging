@@ -37,6 +37,8 @@ namespace Lykke.Messaging
             m_Factory = factory;
             m_ProcessTransportFailure = processTransportFailure;
             m_TransportInfo = transportInfo;
+
+            Transport = m_Factory.Create(_log, m_TransportInfo, Helper.CallOnlyOnce(ProcessTransportFailure));
         }
 
         public ResolvedTransport(
@@ -49,6 +51,8 @@ namespace Lykke.Messaging
             m_Factory = factory;
             m_ProcessTransportFailure = processTransportFailure;
             m_TransportInfo = transportInfo;
+
+            Transport = m_Factory.Create(m_TransportInfo, Helper.CallOnlyOnce(ProcessTransportFailure));
         }
 
         private void AddId(string transportId)
@@ -63,13 +67,6 @@ namespace Lykke.Messaging
         public IMessagingSession GetSession(Endpoint endpoint, string name, Action onFailure)
         {
             AddId(endpoint.TransportId);
-
-            if (Transport == null)
-            {
-                Transport = _logFactory == null 
-                    ? m_Factory.Create(_log, m_TransportInfo, Helper.CallOnlyOnce(ProcessTransportFailure)) 
-                    : m_Factory.Create(m_TransportInfo, Helper.CallOnlyOnce(ProcessTransportFailure));
-            }
 
             var transport = Transport;
             MessagingSessionWrapper messagingSession;
@@ -142,20 +139,12 @@ namespace Lykke.Messaging
             Transport = null;
         }
 
-        [MethodImpl(MethodImplOptions.Synchronized)]
         public bool VerifyDestination(
             Destination destination,
             EndpointUsage usage,
             bool configureIfRequired,
             out string error)
         {
-            if (Transport == null)
-            {
-                Transport = _logFactory == null
-                    ? m_Factory.Create(_log, m_TransportInfo, ProcessTransportFailure)
-                    : m_Factory.Create(m_TransportInfo, ProcessTransportFailure);
-            }
-
             var transport = Transport;
             return transport.VerifyDestination(
                 destination,

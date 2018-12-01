@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-//using System.Runtime.CompilerServices;
 using System.Threading;
 using Microsoft.Extensions.PlatformAbstractions;
 using Common.Log;
@@ -23,7 +22,6 @@ namespace Lykke.Messaging.RabbitMq
         private readonly ConnectionFactory[] m_Factories;
         private readonly List<RabbitMqSession> m_Sessions = new List<RabbitMqSession>();
         private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
-        private readonly bool m_ShuffleBrokersOnSessionCreate;
         private readonly string _appName = PlatformServices.Default.Application.ApplicationName;
         private readonly string _appVersion = PlatformServices.Default.Application.ApplicationVersion;
         
@@ -64,7 +62,6 @@ namespace Lykke.Messaging.RabbitMq
 
             _log = log;
             m_NetworkRecoveryInterval = networkRecoveryInterval;
-            m_ShuffleBrokersOnSessionCreate = shuffleBrokersOnSessionCreate&& brokers.Length > 1;
 
             var factories = brokers.Select(brokerName =>
             {
@@ -86,7 +83,9 @@ namespace Lykke.Messaging.RabbitMq
                 return f;
             });
 
-            m_Factories = factories.ToArray();
+            m_Factories = shuffleBrokersOnSessionCreate && brokers.Length > 1
+                ? factories.OrderBy(x => m_Random.Next()).ToArray()
+                : factories.ToArray();
         }
 
         public RabbitMqTransport(
@@ -106,7 +105,6 @@ namespace Lykke.Messaging.RabbitMq
             _log = logFactory.CreateLog(this);
 
             m_NetworkRecoveryInterval = networkRecoveryInterval;
-            m_ShuffleBrokersOnSessionCreate = shuffleBrokersOnSessionCreate && brokers.Length > 1;
 
             var factories = brokers.Select(brokerName =>
             {
@@ -128,27 +126,25 @@ namespace Lykke.Messaging.RabbitMq
                 return f;
             });
 
-            m_Factories = factories.ToArray();
+            m_Factories = shuffleBrokersOnSessionCreate && brokers.Length > 1
+                ? factories.OrderBy(x => m_Random.Next()).ToArray()
+                : factories.ToArray();
         }
 
-        //[MethodImpl(MethodImplOptions.Synchronized)]
         private IConnection CreateConnection(bool logConnection, Destination destination)
         {
             Exception exception = null;
-            var factories = m_Factories;
-            if (m_ShuffleBrokersOnSessionCreate)
-                factories = factories.OrderBy(x => m_Random.Next()).ToArray();
 
-            for (int i = 0; i < factories.Length; i++)
+            for (int i = 0; i < m_Factories.Length; i++)
             {
                 try
                 {
-                    var connection = factories[i].CreateConnection($"{_appName} {_appVersion} {destination}");
+                    var connection = m_Factories[i].CreateConnection($"{_appName} {_appVersion} {destination}");
                     if (logConnection)
                         _log.WriteInfo(
                             nameof(RabbitMqTransport),
                             nameof(CreateConnection),
-                            $"Created rmq connection to {factories[i].Endpoint.HostName}.");
+                            $"Created rmq connection to {m_Factories[i].Endpoint.HostName} {destination}.");
                     return connection;
                 }
                 catch (Exception e)
@@ -156,7 +152,7 @@ namespace Lykke.Messaging.RabbitMq
                     _log.WriteErrorAsync(
                         nameof(RabbitMqTransport),
                         nameof(CreateConnection),
-                        $"Failed to create rmq connection to {factories[i].Endpoint.HostName}{((i + 1 != factories.Length) ? " (will try other known hosts)" : "")}: ",
+                        $"Failed to create rmq connection to {m_Factories[i].Endpoint.HostName}{((i + 1 != m_Factories.Length) ? " (will try other known hosts)" : "")} {destination}: ",
                         e);
                     exception = e;
                 }
@@ -294,9 +290,7 @@ namespace Lykke.Messaging.RabbitMq
                                 channel.QueueDeclarePassive(destination.Subscribe);
 
                             if (configureIfRequired)
-                            {
                                 channel.QueueBind(destination.Subscribe, publish.ExchangeName, publish.RoutingKey == "" ? "#" : publish.RoutingKey);
-                            }
                         }
                     }
                 }

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Common.Log;
 using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
@@ -127,6 +129,42 @@ namespace Lykke.Messaging
             {
                 throw new TransportException($"Destination {destination} is not properly configured on transport {transportId}", e);
             }
+        }
+
+        public IDictionary<Endpoint, string> VerifyDestinations(
+            string transportId,
+            IEnumerable<Endpoint> endpoints,
+            EndpointUsage usage,
+            bool configureIfRequired)
+        {
+            var result = new ConcurrentDictionary<Endpoint, string>();
+
+            var failedDestinations = new ConcurrentDictionary<Destination, string>();
+            ResolvedTransport transport = ResolveTransport(transportId);
+
+            Parallel.ForEach(endpoints, endpoint =>
+            {
+                try
+                {
+                    bool rerificationResult = transport.VerifyDestination(
+                        endpoint.Destination,
+                        usage,
+                        configureIfRequired,
+                        out var dstError);
+                    result.TryAdd(endpoint, rerificationResult ? null : dstError);
+                }
+                catch (Exception e)
+                {
+                    failedDestinations.TryAdd(endpoint.Destination, e.Message);
+                }
+            });
+
+            if (failedDestinations.Count > 0)
+                throw new TransportException(
+                    $"Destinations {string.Join(", ", failedDestinations.Keys)} are not properly configured on transport {transportId}:{Environment.NewLine}"
+                    + $"{string.Join($",{Environment.NewLine}", failedDestinations.Values)}");
+
+            return result;
         }
     }
 }
