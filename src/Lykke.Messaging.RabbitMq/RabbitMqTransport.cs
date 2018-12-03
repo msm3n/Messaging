@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Microsoft.Extensions.PlatformAbstractions;
 using Common.Log;
 using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
+using Microsoft.Extensions.PlatformAbstractions;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 
@@ -265,7 +265,7 @@ namespace Lykke.Messaging.RabbitMq
             try
             {
                 var publish = PublicationAddress.Parse(destination.Publish) ?? new PublicationAddress("topic", destination.Publish, "");
-                using (IConnection connection = CreateConnection(false, destination.ToString()))
+                using (IConnection connection = CreateConnection(false, destination))
                 {
                     using (IModel channel = connection.CreateModel())
                     {
