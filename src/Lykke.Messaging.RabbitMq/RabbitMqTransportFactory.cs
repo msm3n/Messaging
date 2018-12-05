@@ -16,7 +16,6 @@ namespace Lykke.Messaging.RabbitMq
         private readonly bool m_ShuffleBrokers;
         private readonly TimeSpan? m_AutomaticRecoveryInterval;
         private readonly ConcurrentDictionary<TransportInfo, RabbitMqTransport> _transports = new ConcurrentDictionary<TransportInfo, RabbitMqTransport>();
-        private readonly object _sync = new object();
 
         public string Name => "RabbitMq";
 
