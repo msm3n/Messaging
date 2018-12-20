@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Common.Log;
 using Lykke.Common.Log;
 using Lykke.Messaging.Contract;
@@ -12,7 +14,7 @@ namespace Lykke.Messaging
 {
     internal class TransportManager : ITransportManager
     {
-        private readonly Dictionary<TransportInfo, ResolvedTransport> m_Transports = new Dictionary<TransportInfo, ResolvedTransport>();
+        private readonly ConcurrentDictionary<TransportInfo, ResolvedTransport> m_Transports = new ConcurrentDictionary<TransportInfo, ResolvedTransport>();
         private readonly ILog _log;
         private readonly ITransportResolver m_TransportResolver;
         private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
@@ -41,31 +43,28 @@ namespace Lykke.Messaging
         public void Dispose()
         {
             m_IsDisposed.Set();
-            lock (m_Transports)
+            foreach (var transport in m_Transports.Values.Distinct())
             {
-                foreach (var transport in m_Transports.Values.Distinct())
-                {
-                    transport.Dispose();
-                }
-                m_Transports.Clear();
+                transport.Dispose();
             }
+            m_Transports.Clear();
         }
 
         #endregion
 
         public event TransportEventHandler TransportEvents;
 
-        public IMessagingSession GetMessagingSession(string transportId, string name, Action onFailure = null)
+        public IMessagingSession GetMessagingSession(Endpoint endpoint, string name, Action onFailure = null)
         {
-            ResolvedTransport transport = ResolveTransport(transportId);
+            ResolvedTransport transport = ResolveTransport(endpoint.TransportId);
 
             try
             {
-                return transport.GetSession(transportId, name, onFailure);
+                return transport.GetSession(endpoint, name, onFailure);
             }
             catch (Exception e)
             {
-                throw new TransportException($"Failed to create processing group {name} on transport {transportId}", e);
+                throw new TransportException($"Failed to create processing group {name} on transport {endpoint.TransportId}", e);
             }
         }
 
@@ -75,41 +74,30 @@ namespace Lykke.Messaging
                 throw new ObjectDisposedException($"Can not create transport {transportId}. TransportManager instance is disposed");
 
             var transportInfo = m_TransportResolver.GetTransport(transportId);
-
             if (transportInfo == null)
                 throw new ApplicationException($"Transport '{transportId}' is not resolvable");
+
             var factory = m_TransportFactories.FirstOrDefault(f => f.Name == transportInfo.Messaging);
             if (factory == null)
                 throw new ApplicationException($"Can not create transport '{transportId}', {transportInfo.Messaging} messaging is not supported");
 
-            if (!m_Transports.TryGetValue(transportInfo, out var transport))
-            {
-                lock (m_Transports)
-                {
-                    if (!m_Transports.TryGetValue(transportInfo, out transport))
-                    {
-                        transport = _logFactory == null
-                            ? new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory)
-                            : new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory);
-                        m_Transports.Add(transportInfo, transport);
-                    }
-                }
-            }
+            var transport = m_Transports.GetOrAdd(
+                transportInfo,
+                _logFactory == null
+                    ? new ResolvedTransport(_log, transportInfo, () => ProcessTransportFailure(transportInfo), factory)
+                    : new ResolvedTransport(_logFactory, transportInfo, () => ProcessTransportFailure(transportInfo), factory));
+
             return transport;
         }
 
         internal virtual void ProcessTransportFailure(TransportInfo transportInfo)
         {
-            ResolvedTransport transport;
-            lock (m_Transports)
-            {
-                if (!m_Transports.TryGetValue(transportInfo, out transport))
-                    return;
-                m_Transports.Remove(transportInfo);
-            }
+            if (!m_Transports.TryRemove(transportInfo, out var transport))
+                return;
 
             var handler = TransportEvents;
-            if (handler == null) return;
+            if (handler == null)
+                return;
 
             lock (transport)
             {
@@ -141,6 +129,42 @@ namespace Lykke.Messaging
             {
                 throw new TransportException($"Destination {destination} is not properly configured on transport {transportId}", e);
             }
+        }
+
+        public IDictionary<Endpoint, string> VerifyDestinations(
+            string transportId,
+            IEnumerable<Endpoint> endpoints,
+            EndpointUsage usage,
+            bool configureIfRequired)
+        {
+            var result = new ConcurrentDictionary<Endpoint, string>();
+
+            var failedDestinations = new ConcurrentDictionary<Destination, string>();
+            ResolvedTransport transport = ResolveTransport(transportId);
+
+            Parallel.ForEach(endpoints, endpoint =>
+            {
+                try
+                {
+                    bool rerificationResult = transport.VerifyDestination(
+                        endpoint.Destination,
+                        usage,
+                        configureIfRequired,
+                        out var dstError);
+                    result.TryAdd(endpoint, rerificationResult ? null : dstError);
+                }
+                catch (Exception e)
+                {
+                    failedDestinations.TryAdd(endpoint.Destination, e.Message);
+                }
+            });
+
+            if (failedDestinations.Count > 0)
+                throw new TransportException(
+                    $"Destinations {string.Join(", ", failedDestinations.Keys)} are not properly configured on transport {transportId}:{Environment.NewLine}"
+                    + $"{string.Join($",{Environment.NewLine}", failedDestinations.Values)}");
+
+            return result;
         }
     }
 }

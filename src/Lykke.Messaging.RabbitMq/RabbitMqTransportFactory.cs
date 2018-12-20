@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using Common.Log;
 using Lykke.Common.Log;
@@ -14,11 +15,9 @@ namespace Lykke.Messaging.RabbitMq
         private readonly ILogFactory _logFactory;
         private readonly bool m_ShuffleBrokers;
         private readonly TimeSpan? m_AutomaticRecoveryInterval;
+        private readonly ConcurrentDictionary<TransportInfo, RabbitMqTransport> _transports = new ConcurrentDictionary<TransportInfo, RabbitMqTransport>();
 
-        public string Name
-        {
-            get { return "RabbitMq"; }
-        }
+        public string Name => "RabbitMq";
 
         /// <summary>
         /// Creates new instance of <see cref="RabbitMqTransportFactory"/> with RabbitMQ native automatic recovery disabled
@@ -84,19 +83,22 @@ namespace Lykke.Messaging.RabbitMq
 
         public ITransport Create(TransportInfo transportInfo, Action onFailure)
         {
-            var brokers = transportInfo.Broker
-                .Split(',')
-                .Select(b => b.Trim())
-                .ToArray();
+            return _transports.GetOrAdd(transportInfo, ti =>
+            {
+                var brokers = ti.Broker
+                    .Split(',')
+                    .Select(b => b.Trim())
+                    .ToArray();
 
-            return new RabbitMqTransport(
-                _logFactory,
-                brokers,
-                transportInfo.Login,
-                transportInfo.Password,
-                m_ShuffleBrokers,
-                m_AutomaticRecoveryInterval
-            );
+                return new RabbitMqTransport(
+                    _logFactory,
+                    brokers,
+                    ti.Login,
+                    ti.Password,
+                    m_ShuffleBrokers,
+                    m_AutomaticRecoveryInterval
+                );
+            });
         }
     }
 }

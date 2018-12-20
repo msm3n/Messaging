@@ -95,6 +95,12 @@ namespace Lykke.Messaging.Contract
             EndpointUsage usage,
             bool configureIfRequired,
             out string error);
+
+        Dictionary<Endpoint, string> VerifyEndpoints(
+            EndpointUsage usage,
+            IEnumerable<Endpoint> endpoints,
+            bool configureIfRequired);
+
         string GetStatistics();
     }
 }

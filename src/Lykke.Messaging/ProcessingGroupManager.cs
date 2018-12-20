@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Disposables;
@@ -20,8 +21,8 @@ namespace Lykke.Messaging
         private readonly List<Tuple<DateTime, Action>> m_ResubscriptionSchedule = new List<Tuple<DateTime, Action>>();
         private readonly SchedulingBackgroundWorker m_DeferredAcknowledger;
         private readonly SchedulingBackgroundWorker m_Resubscriber;
-        private readonly Dictionary<string, ProcessingGroup> m_ProcessingGroups=new Dictionary<string, ProcessingGroup>();
-        private readonly Dictionary<string, ProcessingGroupInfo> m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>();
+        private readonly ConcurrentDictionary<string, ProcessingGroup> m_ProcessingGroups = new ConcurrentDictionary<string, ProcessingGroup>();
+        private readonly ConcurrentDictionary<string, ProcessingGroupInfo> m_ProcessingGroupInfos;
 
         private volatile bool m_IsDisposing;
 
@@ -34,7 +35,7 @@ namespace Lykke.Messaging
             IDictionary<string, ProcessingGroupInfo> processingGroups = null,
             int resubscriptionTimeout = 60000)
         {
-            m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
+            m_ProcessingGroupInfos = new ConcurrentDictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
             m_TransportManager = transportManager;
             _log = log;
             ResubscriptionTimeout = resubscriptionTimeout;
@@ -53,22 +54,17 @@ namespace Lykke.Messaging
 
             _log = logFactory.CreateLog(this);
 
-            m_ProcessingGroupInfos = new Dictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
+            m_ProcessingGroupInfos = new ConcurrentDictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
             m_TransportManager = transportManager;
             ResubscriptionTimeout = resubscriptionTimeout;
             m_DeferredAcknowledger = new SchedulingBackgroundWorker("DeferredAcknowledgement", () => ProcessDeferredAcknowledgements());
             m_Resubscriber = new SchedulingBackgroundWorker("Resubscription", () => ProcessResubscription());
         }
 
-        public void AddProcessingGroup(string name,ProcessingGroupInfo info)
+        public void AddProcessingGroup(string name, ProcessingGroupInfo info)
         {
-            lock (m_ProcessingGroups)
-            {
-                if (m_ProcessingGroups.ContainsKey(name))
-                    throw new InvalidOperationException($"Can not add processing group '{name}'. It already exists.");
-
-                m_ProcessingGroupInfos.Add(name, info);
-            }
+            if (!m_ProcessingGroupInfos.TryAdd(name, info))
+                throw new InvalidOperationException($"Can not add processing group '{name}'. It already exists.");
         }
 
         public bool GetProcessingGroupInfo(string name,out ProcessingGroupInfo  groupInfo)
@@ -116,7 +112,7 @@ namespace Lykke.Messaging
  
                     var sessionName = GetSessionName(group, priority);
 
-                    var session = m_TransportManager.GetMessagingSession(endpoint.TransportId, sessionName, Helper.CallOnlyOnce(() =>
+                    var session = m_TransportManager.GetMessagingSession(endpoint, sessionName, Helper.CallOnlyOnce(() =>
                     {
                         _log.WriteInfo(
                             nameof(ProcessingGroupManager),
@@ -178,27 +174,19 @@ namespace Lykke.Messaging
 
         private ProcessingGroup GetProcessingGroup(string processingGroup)
         {
-            ProcessingGroup group;
-            lock (m_ProcessingGroups)
-            {
-                if (m_ProcessingGroups.TryGetValue(processingGroup, out group)) 
-                    return group;
+            if (m_ProcessingGroups.TryGetValue(processingGroup, out var group))
+                return group;
 
-                if (!m_ProcessingGroupInfos.TryGetValue(processingGroup, out var info))
-                {
-                    info = new ProcessingGroupInfo();
-                    m_ProcessingGroupInfos.Add(processingGroup, info);
-                }
-                group = new ProcessingGroup(processingGroup, info);
-                m_ProcessingGroups.Add(processingGroup, group);
-            }
+            var info = m_ProcessingGroupInfos.GetOrAdd(processingGroup, new ProcessingGroupInfo());
+            group = m_ProcessingGroups.GetOrAdd(processingGroup, new ProcessingGroup(processingGroup, info));
+
             return group;
         }
 
         public void Send(Endpoint endpoint, BinaryMessage message, int ttl, string processingGroup)
         {
             var group = GetProcessingGroup(processingGroup);
-            var session = m_TransportManager.GetMessagingSession(endpoint.TransportId, GetSessionName(group, 0));
+            var session = m_TransportManager.GetMessagingSession(endpoint, GetSessionName(group, 0));
 
             group.Send(session,endpoint.Destination.Publish, message, ttl);
         }

@@ -51,8 +51,10 @@ namespace Lykke.Messaging.Tests
                 engine.SubscribeOnTransportEvents((transportId, @event) => failureWasReportedCount++);
 
                 //need for transportManager to start tracking transport failures for these ids
-                engine.TransportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID1, "test");
-                engine.TransportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID2, "test");
+                engine.TransportManager.GetMessagingSession(
+                    new Endpoint { TransportId = TransportConstants.TRANSPORT_ID1 }, "test");
+                engine.TransportManager.GetMessagingSession(
+                    new Endpoint { TransportId = TransportConstants.TRANSPORT_ID2 }, "test");
 
                 engine.TransportManager.ProcessTransportFailure(
                     new TransportInfo(TransportConstants.BROKER,

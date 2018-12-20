@@ -39,7 +39,8 @@ namespace Lykke.Messaging
             IDictionary<string, ProcessingGroupInfo> processingGroups = null,
             params ITransportFactory[] transportFactories)
         {
-            if (transportResolver == null) throw new ArgumentNullException("transportResolver");
+            if (transportResolver == null)
+                throw new ArgumentNullException(nameof(transportResolver));
             _log = log;
             m_TransportManager = new TransportManager(log, transportResolver, transportFactories);
             m_ProcessingGroupManager = new ProcessingGroupManager(log, m_TransportManager,processingGroups);
@@ -97,7 +98,7 @@ namespace Lykke.Messaging
 
         public void AddProcessingGroup(string name,ProcessingGroupInfo info)
         {
-            m_ProcessingGroupManager.AddProcessingGroup(name,info);
+            m_ProcessingGroupManager.AddProcessingGroup(name, info);
         }
 
         public bool GetProcessingGroupInfo(string name, out ProcessingGroupInfo groupInfo)
@@ -116,7 +117,7 @@ namespace Lykke.Messaging
 
         #region IMessagingEngine Members
 
-        public  bool VerifyEndpoint(
+        public bool VerifyEndpoint(
             Endpoint endpoint,
             EndpointUsage usage,
             bool configureIfRequired,
@@ -130,9 +131,36 @@ namespace Lykke.Messaging
                 out error);
         }
 
-        public Destination CreateTemporaryDestination(string transportId,string processingGroup)
+        public Dictionary<Endpoint, string> VerifyEndpoints(
+            EndpointUsage usage,
+            IEnumerable<Endpoint> endpoints,
+            bool configureIfRequired)
         {
-            return m_TransportManager.GetMessagingSession(transportId, processingGroup ?? "default").CreateTemporaryDestination();
+            var result = new Dictionary<Endpoint, string>();
+
+            var byTransport = endpoints.GroupBy(e => e.TransportId);
+
+            foreach (var transportEndpoints in byTransport)
+            {
+                var transportEndpointsErrors = m_TransportManager.VerifyDestinations(
+                    transportEndpoints.Key,
+                    transportEndpoints,
+                    usage,
+                    configureIfRequired);
+                foreach (var transportVerification in transportEndpointsErrors)
+                {
+                    result[transportVerification.Key] = transportVerification.Value;
+                }
+            }
+
+            return result;
+        }
+
+        public Destination CreateTemporaryDestination(string transportId, string processingGroup)
+        {
+            return m_TransportManager
+                .GetMessagingSession(new Endpoint{TransportId = transportId}, processingGroup ?? "default")
+                .CreateTemporaryDestination();
         }
 
         public IDisposable SubscribeOnTransportEvents(TransportEventHandler handler)
@@ -351,7 +379,8 @@ namespace Lykke.Messaging
             int priority = 0,
             params Type[] knownTypes)
         {
-            if (endpoint.Destination == null) throw new ArgumentException("Destination can not be null");
+            if (endpoint.Destination == null)
+                throw new ArgumentException("Destination can not be null");
             if (m_Disposing.WaitOne(0))
                 throw new InvalidOperationException("Engine is disposing");
 
@@ -363,10 +392,9 @@ namespace Lykke.Messaging
 
                     return Subscribe(
                         endpoint,
-                        (m,ack) =>
+                        (m, ack) =>
                             {
-                                Type messageType;
-                                if (!dictionary.TryGetValue(m.Type ?? "", out messageType))
+                                if (!dictionary.TryGetValue(m.Type ?? "", out var messageType))
                                 {
                                     try
                                     {
@@ -481,7 +509,7 @@ namespace Lykke.Messaging
             {
                 try
                 {
-                    var session = m_TransportManager.GetMessagingSession(endpoint.TransportId, GetProcessingGroup(endpoint, processingGroup));
+                    var session = m_TransportManager.GetMessagingSession(endpoint, GetProcessingGroup(endpoint, processingGroup));
                     RequestHandle requestHandle = session.SendRequest(
                         endpoint.Destination.Publish,
                         SerializeMessage(endpoint.SerializationFormat, request),
@@ -593,7 +621,7 @@ namespace Lykke.Messaging
             {
                 try
                 {
-                    var session = m_TransportManager.GetMessagingSession(endpoint.TransportId, GetProcessingGroup(endpoint, processingGroup));
+                    var session = m_TransportManager.GetMessagingSession(endpoint, GetProcessingGroup(endpoint, processingGroup));
                     var subscription = session.RegisterHandler(
                         endpoint.Destination.Subscribe,
                 	    requestMessage =>
@@ -644,8 +672,8 @@ namespace Lykke.Messaging
         private BinaryMessage SerializeMessage<TMessage>(SerializationFormat format,TMessage message)
         {
             var type = GetMessageType(typeof(TMessage));
-            var bytes = m_SerializationManager.Serialize(format,message);
-            return new BinaryMessage{Bytes=bytes,Type=type};
+            var bytes = m_SerializationManager.Serialize(format, message);
+            return new BinaryMessage{ Bytes = bytes, Type = type };
         }
 
         private string GetMessageType(Type type)

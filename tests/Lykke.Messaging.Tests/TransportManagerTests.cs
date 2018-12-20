@@ -4,6 +4,7 @@ using System.Threading;
 using Lykke.Common.Log;
 using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
+using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
 using Moq;
@@ -61,15 +62,18 @@ namespace Lykke.Messaging.Tests
             Action createdSessionOnFailure = () => { Console.WriteLine("!!"); };
             var transport = new Mock<ITransport>();
             transport
-                .Setup(t => t.CreateSession(It.IsAny<Action>()))
-                .Callback<Action>((invocation) => createdSessionOnFailure = invocation);
+                .Setup(t => t.CreateSession(It.IsAny<Action>(), It.IsAny<Destination>()))
+                .Callback<Action, Destination>((invocation, dst) => createdSessionOnFailure = invocation);
             var factory = new Mock<ITransportFactory>();
             factory.Setup(f => f.Create(It.IsAny<TransportInfo>(), It.IsAny<Action>())).Returns(transport.Object);
             factory.Setup(f => f.Name).Returns("Mock");
             var transportManager = new TransportManager(_logFactory, resolver, factory.Object);
             int i = 0;
 
-            transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID3, "test", () => { Interlocked.Increment(ref i); });
+            transportManager.GetMessagingSession(
+                new Endpoint { TransportId = TransportConstants.TRANSPORT_ID3 },
+                "test",
+                () => { Interlocked.Increment(ref i); });
 
             createdSessionOnFailure();
             createdSessionOnFailure();
@@ -94,7 +98,9 @@ namespace Lykke.Messaging.Tests
                     start.WaitOne();
                     try
                     {
-                        transportManager.GetMessagingSession(TransportConstants.TRANSPORT_ID1, "test");
+                        transportManager.GetMessagingSession(
+                            new Endpoint { TransportId = TransportConstants.TRANSPORT_ID1 },
+                            "test");
                         Interlocked.Increment(ref attemptCount);
                     }
                     catch (Exception)
