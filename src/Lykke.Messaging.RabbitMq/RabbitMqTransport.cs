@@ -289,6 +289,8 @@ namespace Lykke.Messaging.RabbitMq
                             else
                                 channel.QueueDeclarePassive(destination.Subscribe);
 
+                            channel.BasicQos(0, 300, false);
+
                             if (configureIfRequired)
                                 channel.QueueBind(destination.Subscribe, publish.ExchangeName, publish.RoutingKey == "" ? "#" : publish.RoutingKey);
                         }
