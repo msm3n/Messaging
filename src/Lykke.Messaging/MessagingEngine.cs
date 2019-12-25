@@ -756,8 +756,9 @@ namespace Lykke.Messaging
                     $"Failed to deserialize message. Transport: {endpoint.TransportId}, Destination: {endpoint.Destination}, Message Type: {type.Name}",
                     e);
 
-                //TODO: need to unack without requeue
                 ack(DEFAULT_UNACK_DELAY, false);
+
+                return;
             }
 
             try
