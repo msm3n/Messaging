@@ -76,7 +76,7 @@ namespace Lykke.Messaging.RabbitMq
                     f.NetworkRecoveryInterval = m_NetworkRecoveryInterval.Value; //it's default value
 
                 if (Uri.TryCreate(brokerName, UriKind.Absolute, out var uri))
-                    f.Uri = uri.ToString();
+                    f.Uri = uri;
                 else
                     f.HostName = brokerName;
 
@@ -119,7 +119,7 @@ namespace Lykke.Messaging.RabbitMq
                     f.NetworkRecoveryInterval = m_NetworkRecoveryInterval.Value; //it's default value
 
                 if (Uri.TryCreate(brokerName, UriKind.Absolute, out var uri))
-                    f.Uri = uri.ToString();
+                    f.Uri = uri;
                 else
                     f.HostName = brokerName;
 
