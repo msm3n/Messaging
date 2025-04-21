@@ -1,14 +1,13 @@
 ﻿using System;
-using Common.Log;
-using Lykke.Common.Log;
+using Microsoft.Extensions.Logging;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
 
 namespace Lykke.Messaging
 {
-    internal class MessagingSessionWrapper:IMessagingSession
+    internal class MessagingSessionWrapper : IMessagingSession
     {
-        private readonly ILog _log;
+        private static readonly ILogger<MessagingSessionWrapper> _logger = Log.For<MessagingSessionWrapper>();
 
         private IMessagingSession _messagingSession;
 
@@ -17,24 +16,8 @@ namespace Lykke.Messaging
 
         public event Action OnFailure;
 
-        [Obsolete]
-        public MessagingSessionWrapper(ILog log, string transportId, string name)
+        public MessagingSessionWrapper(string transportId, string name)
         {
-            _log = log;
-
-            TransportId = transportId;
-            Name = name;
-        }
-
-        public MessagingSessionWrapper(ILogFactory logFactory, string transportId, string name)
-        {
-            if (logFactory == null)
-            {
-                throw new ArgumentNullException(nameof(logFactory));
-            }
-
-            _log = logFactory.CreateLog(this);
-
             TransportId = transportId;
             Name = name;
         }
@@ -49,15 +32,20 @@ namespace Lykke.Messaging
             if (OnFailure == null)
                 return;
 
-            foreach (var handler in OnFailure.GetInvocationList())
+            // вариант с LINQ:
+            // foreach (Action handler in OnFailure.GetInvocationList().Cast<Action>())
+
+            // вариант без LINQ:
+            foreach (Delegate d in OnFailure.GetInvocationList())
             {
+                var handler = (Action)d;
                 try
                 {
-                    handler.DynamicInvoke();
+                    handler();
                 }
                 catch (Exception e)
                 {
-                    _log.WriteError(nameof(MessagingSessionWrapper), nameof(ReportFailure), e);
+                    _logger.LogError(e, "Handler {Handler} in ReportFailure threw", handler.Method.Name);
                 }
             }
         }
@@ -87,7 +75,7 @@ namespace Lykke.Messaging
 
         public IDisposable Subscribe(string destination, Action<BinaryMessage, Action<bool>> callback, string messageType)
         {
-            return _messagingSession.Subscribe(destination,callback, messageType);
+            return _messagingSession.Subscribe(destination, callback, messageType);
         }
 
         public Destination CreateTemporaryDestination()

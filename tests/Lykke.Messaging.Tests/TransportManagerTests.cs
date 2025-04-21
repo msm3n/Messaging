@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
-using Lykke.Common.Log;
-using Lykke.Logs;
-using Lykke.Logs.Loggers.LykkeConsole;
+using Microsoft.Extensions.Logging;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Transports;
@@ -18,16 +16,9 @@ namespace Lykke.Messaging.Tests
     [TestFixture]
     public class TransportManagerTests : IDisposable
     {
-        private readonly ILogFactory _logFactory;
-
-        public TransportManagerTests()
-        {
-            _logFactory = LogFactory.Create().AddUnbufferedConsole();
-        }
-
         public void Dispose()
         {
-            _logFactory?.Dispose();
+
         }
 
         private class TransportConstants
@@ -45,13 +36,13 @@ namespace Lykke.Messaging.Tests
             var resolver = new Mock<ITransportResolver>();
             resolver
                 .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID1))
-                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory") );
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
             resolver
                 .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID2))
-                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory") );
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
             resolver
                 .Setup(r => r.GetTransport(TransportConstants.TRANSPORT_ID3))
-                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "Mock") );
+                .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "Mock"));
             return resolver.Object;
         }
 
@@ -67,7 +58,7 @@ namespace Lykke.Messaging.Tests
             var factory = new Mock<ITransportFactory>();
             factory.Setup(f => f.Create(It.IsAny<TransportInfo>(), It.IsAny<Action>())).Returns(transport.Object);
             factory.Setup(f => f.Name).Returns("Mock");
-            var transportManager = new TransportManager(_logFactory, resolver, factory.Object);
+            var transportManager = new TransportManager(resolver, factory.Object);
             int i = 0;
 
             transportManager.GetMessagingSession(
@@ -78,7 +69,7 @@ namespace Lykke.Messaging.Tests
             createdSessionOnFailure();
             createdSessionOnFailure();
 
-            Assert.That(i, Is.Not.EqualTo(0),"Session failure callback was not called");
+            Assert.That(i, Is.Not.EqualTo(0), "Session failure callback was not called");
             Assert.That(i, Is.EqualTo(1), "Session  failure callback was called twice");
         }
 
@@ -86,7 +77,7 @@ namespace Lykke.Messaging.Tests
         public void ConcurrentTransportResolutionTest()
         {
             var resolver = MockTransportResolver();
-            var transportManager = new TransportManager(_logFactory, resolver, new InMemoryTransportFactory());
+            var transportManager = new TransportManager(resolver, new InMemoryTransportFactory());
             var start = new ManualResetEvent(false);
             int errorCount = 0;
             int attemptCount = 0;

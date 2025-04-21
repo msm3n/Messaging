@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Common.Log;
+using Microsoft.Extensions.Logging;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.InMemory;
 using Lykke.Messaging.Serialization;
@@ -19,15 +19,15 @@ namespace Lykke.Messaging.Tests
     {
         private abstract class TransportConstants
         {
-            public const string QUEUE1="queue1";
-            public const string QUEUE2="queue2";
+            public const string QUEUE1 = "queue1";
+            public const string QUEUE2 = "queue2";
             public const string TRANSPORT_ID1 = "tr1";
             public const string TRANSPORT_ID2 = "tr2";
             public const string USERNAME = "test";
             public const string PASSWORD = "test";
             public const string BROKER = "test";
         }
-
+        
         private static ITransportResolver MockTransportResolver()
         {
             var resolver = new Mock<ITransportResolver>();
@@ -39,12 +39,12 @@ namespace Lykke.Messaging.Tests
                 .Returns(new TransportInfo(TransportConstants.BROKER, TransportConstants.USERNAME, TransportConstants.PASSWORD, "MachineName", "InMemory"));
             return resolver.Object;
         }
-       
+
         [Test]
         public void TransportFailureHandlingTest()
         {
             var resolver = MockTransportResolver();
-            using (var engine = new MessagingEngine(new LogToConsole(), resolver, new InMemoryTransportFactory()))
+            using (var engine = new MessagingEngine(resolver, new InMemoryTransportFactory()))
             {
                 engine.SerializationManager.RegisterSerializer(SerializationFormat.Json, typeof(string), new FakeStringSerializer());
                 int failureWasReportedCount = 0;
@@ -69,14 +69,14 @@ namespace Lykke.Messaging.Tests
         public void ByDefaultEachDestinationIsSubscribedOnDedicatedThreadTest()
         {
             ITransportResolver resolver = MockTransportResolver();
-            using (var engine = new MessagingEngine(new LogToConsole(), resolver, new InMemoryTransportFactory()))
+            using (var engine = new MessagingEngine(resolver, new InMemoryTransportFactory()))
             {
                 engine.SerializationManager.RegisterSerializer(SerializationFormat.Json, typeof(string), new FakeStringSerializer());
 
                 var queue1MessagesThreadIds = new List<int>();
                 var queue2MessagesThreadIds = new List<int>();
                 var messagesCounter = 0;
-                var allMessagesAreRecieved=new ManualResetEvent(false);
+                var allMessagesAreRecieved = new ManualResetEvent(false);
                 using (engine.Subscribe<string>(new Endpoint(TransportConstants.TRANSPORT_ID1, TransportConstants.QUEUE1, serializationFormat: SerializationFormat.Json), s =>
                 {
                     queue1MessagesThreadIds.Add(Thread.CurrentThread.ManagedThreadId);

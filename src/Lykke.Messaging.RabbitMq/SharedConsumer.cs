@@ -3,36 +3,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using RabbitMQ.Client;
-using Common.Log;
-using Lykke.Common.Log;
+using Microsoft.Extensions.Logging;
 
 namespace Lykke.Messaging.RabbitMq
 {
-    public class SharedConsumer : DefaultBasicConsumer,IDisposable
+    public class SharedConsumer : DefaultBasicConsumer, IDisposable
     {
-        private readonly ILog _log;
-        private readonly Dictionary<string, Action<IBasicProperties, byte[], Action<bool>>> m_Callbacks
-            = new Dictionary<string, Action<IBasicProperties, byte[], Action<bool>>>();
+        private static readonly ILogger<SharedConsumer> _log = Log.For<SharedConsumer>();
+
+        private readonly Dictionary<string, MessageCallback> m_Callbacks
+            = new Dictionary<string, MessageCallback>();
         private readonly AutoResetEvent m_CallBackAdded = new AutoResetEvent(false);
         private readonly ManualResetEvent m_Stop = new ManualResetEvent(false);
 
-        [Obsolete]
-        public SharedConsumer(ILog log, IModel model) : base(model)
+        public SharedConsumer(IModel model) : base(model)
         {
-            _log = log;
         }
 
-        public SharedConsumer(ILogFactory logFactory, IModel model) : base(model)
-        {
-            if (logFactory == null)
-            {
-                throw new ArgumentNullException(nameof(logFactory));
-            }
-
-            _log = logFactory.CreateLog(this);
-        }
-
-        public void AddCallback(Action<IBasicProperties, byte[], Action<bool>> callback, string messageType)
+        public void AddCallback(MessageCallback callback, string messageType)
         {
             if (callback == null) throw new ArgumentNullException("callback");
             if (string.IsNullOrEmpty(messageType)) throw new ArgumentNullException("messageType");
@@ -70,10 +58,10 @@ namespace Lykke.Messaging.RabbitMq
             bool waitForCallback = true;
             while (true)
             {
-                Action<IBasicProperties, byte[], Action<bool>> callback;
+                MessageCallback callback;
                 lock (m_Callbacks)
                 {
-                    if(waitForCallback)
+                    if (waitForCallback)
                         m_CallBackAdded.Reset();
                     m_Callbacks.TryGetValue(properties.Type, out callback);
                 }
@@ -81,9 +69,9 @@ namespace Lykke.Messaging.RabbitMq
                 {
                     try
                     {
-                        callback(properties, body,ack =>
+                        callback(properties, body, ack =>
                             {
-                                if(ack)
+                                if (ack)
                                     Model.BasicAck(deliveryTag, false);
                                 else
                                     //TODO: allow callback to decide whether to redeliver
@@ -92,7 +80,7 @@ namespace Lykke.Messaging.RabbitMq
                     }
                     catch (Exception e)
                     {
-                        _log.WriteError(nameof(SharedConsumer), nameof(HandleBasicDeliver), e);
+                        _log.LogError(e, "Error in {Class}.{Method}", nameof(SharedConsumer), nameof(HandleBasicDeliver));
                     }
                     return;
                 }
@@ -101,7 +89,7 @@ namespace Lykke.Messaging.RabbitMq
                 {
                     //The registered callback is not the one we are waiting for. (Nack message for later redelivery and free processing thread for it to process other callback registration)
                     //or subscription is canceling, returning message of unknown type to queue
-                    Model.BasicNack(deliveryTag, false,true);
+                    Model.BasicNack(deliveryTag, false, true);
                     break;
                 }
                 waitForCallback = false;
@@ -126,7 +114,7 @@ namespace Lykke.Messaging.RabbitMq
                     }
                     catch (Exception e)
                     {
-                        _log.WriteError(nameof(SharedConsumer), nameof(Stop), e);
+                        _log.LogError(e, "Error in {Class}.{Method}", nameof(SharedConsumer), nameof(Stop));
                     }
                 }
             }

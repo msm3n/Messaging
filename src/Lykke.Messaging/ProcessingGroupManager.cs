@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Disposables;
 using System.Text;
-using Common.Log;
-using Lykke.Common.Log;
+using Microsoft.Extensions.Logging;
 using Lykke.Core.Utils;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Transports;
@@ -13,10 +12,11 @@ using Lykke.Messaging.Utils;
 
 namespace Lykke.Messaging
 {
-    internal class ProcessingGroupManager:IDisposable
+    internal class ProcessingGroupManager : IDisposable
     {
         private readonly ITransportManager m_TransportManager;
-        private readonly ILog _log;
+        private static readonly ILogger<ProcessingGroupManager> _logger = Log.For<ProcessingGroupManager>();
+
         private readonly List<Tuple<DateTime, Action>> m_DeferredAcknowledgements = new List<Tuple<DateTime, Action>>();
         private readonly List<Tuple<DateTime, Action>> m_ResubscriptionSchedule = new List<Tuple<DateTime, Action>>();
         private readonly SchedulingBackgroundWorker m_DeferredAcknowledger;
@@ -28,32 +28,11 @@ namespace Lykke.Messaging
 
         public int ResubscriptionTimeout { get; set; }
 
-        [Obsolete]
         public ProcessingGroupManager(
-            ILog log,
             ITransportManager transportManager,
             IDictionary<string, ProcessingGroupInfo> processingGroups = null,
             int resubscriptionTimeout = 60000)
         {
-            m_ProcessingGroupInfos = new ConcurrentDictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
-            m_TransportManager = transportManager;
-            _log = log;
-            ResubscriptionTimeout = resubscriptionTimeout;
-            m_DeferredAcknowledger = new SchedulingBackgroundWorker("DeferredAcknowledgement", () => ProcessDeferredAcknowledgements());
-            m_Resubscriber = new SchedulingBackgroundWorker("Resubscription", () => ProcessResubscription());
-        }
-
-        public ProcessingGroupManager(
-            ILogFactory logFactory,
-            ITransportManager transportManager,
-            IDictionary<string, ProcessingGroupInfo> processingGroups = null,
-            int resubscriptionTimeout = 60000)
-        {
-            if (logFactory == null)
-                throw new ArgumentNullException(nameof(logFactory));
-
-            _log = logFactory.CreateLog(this);
-
             m_ProcessingGroupInfos = new ConcurrentDictionary<string, ProcessingGroupInfo>(processingGroups ?? new Dictionary<string, ProcessingGroupInfo>());
             m_TransportManager = transportManager;
             ResubscriptionTimeout = resubscriptionTimeout;
@@ -67,7 +46,7 @@ namespace Lykke.Messaging
                 throw new InvalidOperationException($"Can not add processing group '{name}'. It already exists.");
         }
 
-        public bool GetProcessingGroupInfo(string name,out ProcessingGroupInfo  groupInfo)
+        public bool GetProcessingGroupInfo(string name, out ProcessingGroupInfo groupInfo)
         {
             if (m_ProcessingGroupInfos.TryGetValue(name, out var info))
             {
@@ -103,21 +82,17 @@ namespace Lykke.Messaging
                 {
                     var group = GetProcessingGroup(processingGroup);
                     processingGroupName = group.Name;
-                    _log.WriteInfo(
-                        nameof(ProcessingGroupManager),
-                        nameof(Subscribe),
-                        attemptNumber > 0
-                            ? $"Resubscribing for endpoint {endpoint} within processing group '{processingGroupName}'. Attempt# {attemptNumber}"
-                            : $"Subscribing for endpoint {endpoint} within processing group '{processingGroupName}'");
- 
+                    _logger.LogInformation(
+                        "Subscribing for endpoint {Endpoint} within processing group '{Group}'. Attempt#{Attempt}",
+                        endpoint, processingGroupName, attemptNumber);
+
                     var sessionName = GetSessionName(group, priority);
 
                     var session = m_TransportManager.GetMessagingSession(endpoint, sessionName, Helper.CallOnlyOnce(() =>
                     {
-                        _log.WriteInfo(
-                            nameof(ProcessingGroupManager),
-                            nameof(Subscribe),
-                            $"Subscription for endpoint {endpoint} within processing group '{processingGroupName}' failure detected. Attempting subscribe again.");
+                        _logger.LogInformation(
+                            "Subscription for endpoint {Endpoint} within processing group '{Group}' failure detected. Attempting subscribe again.",
+                            endpoint, processingGroupName);
                         doSubscribe(0);
                     }));
 
@@ -137,27 +112,25 @@ namespace Lykke.Messaging
                     catch
                     {
                     }
-                    _log.WriteInfo(
-                        nameof(ProcessingGroupManager),
-                        nameof(Subscribe),
-                        $"Subscribed for endpoint {endpoint} in processingGroup '{processingGroupName}' using session {sessionName}");
+                    _logger.LogInformation(
+                        "Subscribed for endpoint {Endpoint} in processingGroup '{Group}' using session {Session}",
+                        endpoint, processingGroupName, sessionName);
                 }
                 catch (InvalidSubscriptionException e)
                 {
-                    _log.WriteErrorAsync(
-                        nameof(ProcessingGroupManager),
-                        nameof(Subscribe),
-                        $"Failed to subscribe for endpoint {endpoint} within processing group '{processingGroupName}'",
-                        e);
+                    _logger.LogError(
+                        e,
+                        "Failed to subscribe for endpoint {Endpoint} within processing group '{Group}'",
+                        endpoint, processingGroupName);
                     throw;
                 }
                 catch (Exception e)
                 {
-                    _log.WriteErrorAsync(
-                        nameof(ProcessingGroupManager),
-                        nameof(Subscribe),
-                        $"Failed to subscribe for endpoint {endpoint} within processing group '{processingGroupName}'. Attempt# {attemptNumber}. Will retry in {ResubscriptionTimeout}ms",
-                        e);
+                    _logger.LogError(
+                        e,
+                        "Error subscribing endpoint {Endpoint} in group '{Group}'. Attempt#{Attempt}, retry in {Timeout}ms",
+                        endpoint, processingGroupName, attemptNumber, ResubscriptionTimeout);
+
                     ScheduleSubscription(doSubscribe, attemptNumber + 1);
                 }
             };
@@ -188,7 +161,7 @@ namespace Lykke.Messaging
             var group = GetProcessingGroup(processingGroup);
             var session = m_TransportManager.GetMessagingSession(endpoint, GetSessionName(group, 0));
 
-            group.Send(session,endpoint.Destination.Publish, message, ttl);
+            group.Send(session, endpoint.Destination.Publish, message, ttl);
         }
 
         private void ScheduleSubscription(Action<int> subscribe, int attemptCount)
@@ -222,11 +195,9 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteErrorAsync(
-                        nameof(ProcessingGroupManager),
-                        nameof(ProcessDeferredAcknowledgements),
-                        "Deferred acknowledge failed. Will retry later.",
-                        e);
+                    _logger.LogError(
+                        e,
+                        "Deferred acknowledge failed. Will retry later.");
                 }
             }
 
@@ -256,10 +227,9 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteInfo(
-                        nameof(ProcessingGroupManager),
-                        nameof(ProcessResubscription),
-                        $"Resubscription failed. Will retry later: {e.Message}");
+                    _logger.LogInformation(
+                        "Resubscription failed: {Error}. Will retry later.",
+                        e.Message);
                 }
             }
 

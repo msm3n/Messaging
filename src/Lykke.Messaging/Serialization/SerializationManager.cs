@@ -1,6 +1,4 @@
-﻿using Common.Log;
-using Lykke.Common.Log;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -13,19 +11,11 @@ namespace Lykke.Messaging.Serialization
         private readonly ReaderWriterLockSlim m_SerializerLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
         private readonly Dictionary<Tuple<SerializationFormat, Type>, object> m_Serializers = new Dictionary<Tuple<SerializationFormat, Type>, object>();
 
-        [Obsolete]
-        public SerializationManager(ILog log)
+        public SerializationManager()
         {
             RegisterSerializerFactory(new JsonSerializerFactory());
-            RegisterSerializerFactory(new ProtobufSerializerFactory(log));
-            RegisterSerializerFactory(new MessagePackSerializerFactory(log));
-        }
-
-        public SerializationManager(ILogFactory logFactory)
-        {
-            RegisterSerializerFactory(new JsonSerializerFactory());
-            RegisterSerializerFactory(new ProtobufSerializerFactory(logFactory));
-            RegisterSerializerFactory(new MessagePackSerializerFactory(logFactory));
+            RegisterSerializerFactory(new ProtobufSerializerFactory());
+            RegisterSerializerFactory(new MessagePackSerializerFactory());
         }
 
         #region ISerializationManager Members
@@ -74,7 +64,7 @@ namespace Lykke.Messaging.Serialization
                     throw new InvalidOperationException(
                         string.Format(
                             "Can not register '{0}' as {1} serializer for type '{2}'. '{2}' is already assigned with serializer '{3}'",
-                            serializerType,format, targetType, oldSerializer.GetType()));
+                            serializerType, format, targetType, oldSerializer.GetType()));
                 }
 
                 m_SerializerLock.EnterWriteLock();
@@ -148,7 +138,7 @@ namespace Lykke.Messaging.Serialization
                                 return messageSerializer;
 
                             IMessageSerializer<TMessage> serializer = serializers[0];
-                            RegisterSerializer(format,typeof (TMessage), serializer);
+                            RegisterSerializer(format, typeof(TMessage), serializer);
                             return serializer;
                         }
                         finally

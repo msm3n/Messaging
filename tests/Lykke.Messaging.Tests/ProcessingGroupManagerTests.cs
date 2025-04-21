@@ -5,9 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Lykke.Common.Log;
-using Lykke.Logs;
-using Lykke.Logs.Loggers.LykkeConsole;
+using Microsoft.Extensions.Logging;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Serialization;
 using Lykke.Messaging.Transports;
@@ -20,16 +18,9 @@ namespace Lykke.Messaging.Tests
     [TestFixture]
     public class ProcessingGroupManagerTests : IDisposable
     {
-        private readonly ILogFactory _logFactory;
-
-        public ProcessingGroupManagerTests()
-        {
-            _logFactory = LogFactory.Create().AddUnbufferedConsole();
-        }
-
         public void Dispose()
         {
-            _logFactory?.Dispose();
+
         }
 
         [Test]
@@ -52,13 +43,12 @@ namespace Lykke.Messaging.Tests
         public void SameThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager);
-            var endpoint = new Endpoint {Destination = "queue", TransportId = "transport-1"};
+            var processingGroupManager = new ProcessingGroupManager(transportManager);
+            var endpoint = new Endpoint { Destination = "queue", TransportId = "transport-1" };
             var session = transportManager.GetMessagingSession(endpoint, "pg");
             var usedThreads = new List<int>();
             var subscription = processingGroupManager.Subscribe(endpoint,
@@ -83,18 +73,17 @@ namespace Lykke.Messaging.Tests
         public void MultiThreadThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo() {ConcurrencyLevel = 3}
                 }
             });
-            var endpoint = new Endpoint {Destination = "queue", TransportId = "transport-1"};
+            var endpoint = new Endpoint { Destination = "queue", TransportId = "transport-1" };
             var processingGroup = transportManager.GetMessagingSession(endpoint, "pg");
             var usedThreads = new List<int>();
             var subscription = processingGroupManager.Subscribe(
@@ -129,12 +118,11 @@ namespace Lykke.Messaging.Tests
         public void QueuedTaskSchedulerIsHiddenTest()
         {
             var transportManager = new TransportManager(
-                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
-            var processingGroupManager = new ProcessingGroupManager(_logFactory, transportManager, new Dictionary<string, ProcessingGroupInfo>()
+            var processingGroupManager = new ProcessingGroupManager(transportManager, new Dictionary<string, ProcessingGroupInfo>()
             {
                 {
                     "pg", new ProcessingGroupInfo() {ConcurrencyLevel = 1,QueueCapacity = 1000}
@@ -142,7 +130,7 @@ namespace Lykke.Messaging.Tests
             });
 
             var e = new ManualResetEvent(false);
-            var endpoint = new Endpoint {Destination = "queue", TransportId = "transport-1"};
+            var endpoint = new Endpoint { Destination = "queue", TransportId = "transport-1" };
             var processingGroup = transportManager.GetMessagingSession(endpoint, "pg");
             var childTaskFinishedBeforeHandler = false;
             var subscription = processingGroupManager.Subscribe(
@@ -159,7 +147,7 @@ namespace Lykke.Messaging.Tests
 
             using (subscription)
             {
-                processingGroup.Send("queue", new BinaryMessage {Bytes = Encoding.UTF8.GetBytes((100).ToString())}, 0);
+                processingGroup.Send("queue", new BinaryMessage { Bytes = Encoding.UTF8.GetBytes((100).ToString()) }, 0);
                 e.WaitOne(1000);
                 Assert.That(childTaskFinishedBeforeHandler, "Child task used scheduler from QueuedTaskScheduler");
             }
@@ -169,13 +157,11 @@ namespace Lykke.Messaging.Tests
         public void MultiThreadPrioritizedThreadSubscriptionTest()
         {
             var transportManager = new TransportManager(
-                _logFactory,
                 new TransportResolver(new Dictionary<string, TransportInfo>
                     {
                         {"transport-1", new TransportInfo("transport-1", "login1", "pwd1", "None", "InMemory")}
                     }));
             var processingGroupManager = new ProcessingGroupManager(
-                _logFactory,
                 transportManager,
                 new Dictionary<string, ProcessingGroupInfo>()
                 {
@@ -214,7 +200,7 @@ namespace Lykke.Messaging.Tests
 
                 Thread.Sleep(1200);
                 ResolvedTransport transport = transportManager.ResolveTransport("transport-1");
-                Assert.That(transport.Sessions.Select(s => s.Name).OrderBy(s => s), Is.EqualTo(new[] { "pg priority0", "pg priority1", "pg priority2" }),"Wrong sessions were created. Expectation: one session per [processingGroup,priority] pair ");
+                Assert.That(transport.Sessions.Select(s => s.Name).OrderBy(s => s), Is.EqualTo(new[] { "pg priority0", "pg priority1", "pg priority2" }), "Wrong sessions were created. Expectation: one session per [processingGroup,priority] pair ");
             }
             Assert.That(usedThreads.Count, Is.EqualTo(20), "not all messages were processed");
             Assert.That(usedThreads.Distinct().Count(), Is.EqualTo(3), "wrong number of threads was used for message processing");
@@ -238,14 +224,14 @@ namespace Lykke.Messaging.Tests
                     new Endpoint("test", "test", false, SerializationFormat.Json),
                     (message, acknowledge) =>
                     {
-                      processed = DateTime.UtcNow;
-                      acknowledge(1000, true);
+                        processed = DateTime.UtcNow;
+                        acknowledge(1000, true);
                     },
                     null,
                     "ProcessingGroup",
                     0);
                 var acknowledged = new ManualResetEvent(false);
-                callback(new BinaryMessage {Bytes = new byte[0], Type = typeof (string).Name}, b =>
+                callback(new BinaryMessage { Bytes = new byte[0], Type = typeof(string).Name }, b =>
                 {
                     acked = DateTime.UtcNow;
                     acknowledged.Set();
@@ -260,16 +246,16 @@ namespace Lykke.Messaging.Tests
         {
             bool? normallyProcessedMessageAck = null;
             bool? stuckedInQueueMessageAck = null;
-            var finishProcessing=new ManualResetEvent(false);
+            var finishProcessing = new ManualResetEvent(false);
             Action<BinaryMessage, Action<bool>> callback = null;
             using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(action => callback = action))
             {
-                IDisposable subscription=null ;
+                IDisposable subscription = null;
                 subscription = processingGroupManager.Subscribe(
                     new Endpoint("test", "test", false, SerializationFormat.Json),
                     (message, acknowledge) =>
                     {
-                        acknowledge(0,true);
+                        acknowledge(0, true);
                         finishProcessing.WaitOne();
 
                         //dispose subscription in first message processing to ensure first message processing starts before unsubscription 
@@ -279,9 +265,9 @@ namespace Lykke.Messaging.Tests
                     "SingleThread",
                     0);
 
-                callback(new BinaryMessage { Bytes = new byte[]{1}, Type = typeof(string).Name }, b => normallyProcessedMessageAck=b);
+                callback(new BinaryMessage { Bytes = new byte[] { 1 }, Type = typeof(string).Name }, b => normallyProcessedMessageAck = b);
                 finishProcessing.Set();
-                callback(new BinaryMessage { Bytes = new byte[]{2}, Type = typeof(string).Name }, b => stuckedInQueueMessageAck=b);
+                callback(new BinaryMessage { Bytes = new byte[] { 2 }, Type = typeof(string).Name }, b => stuckedInQueueMessageAck = b);
             }
             Assert.That(normallyProcessedMessageAck, Is.True, "Normally processed message was not acked");
             Assert.That(stuckedInQueueMessageAck, Is.False, "Stucked message was not unacked");
@@ -304,9 +290,9 @@ namespace Lykke.Messaging.Tests
                     null,
                     "ProcessingGroup",
                     0);
-              callback(
-                  new BinaryMessage { Bytes = new byte[0], Type = typeof(string).Name },
-                  b => { acknowledged = true; });
+                callback(
+                    new BinaryMessage { Bytes = new byte[0], Type = typeof(string).Name },
+                    b => { acknowledged = true; });
             }
 
             Assert.That(acknowledged, Is.True, "Message was not acknowledged on engine dispose");
@@ -316,13 +302,13 @@ namespace Lykke.Messaging.Tests
         public void DuplicateSubscriptionFailuresShoudNotCauseDoubleResubscriptionTest()
         {
             var subscribed = new AutoResetEvent(false);
-            int subscriptionsCounter=0;
+            int subscriptionsCounter = 0;
             Action onSubscribe = () =>
             {
                 Interlocked.Increment(ref subscriptionsCounter);
                 subscribed.Set();
             };
-            Action emulateFail=null;
+            Action emulateFail = null;
             using (var processingGroupManager = CreateProcessingGroupManagerWithMockedDependencies(
                 action => { },
                 action => emulateFail = emulateFail ?? action,
@@ -338,7 +324,7 @@ namespace Lykke.Messaging.Tests
                     Thread.Sleep(100);
                     emulateFail();
                 }
-                Assert.That(subscriptionsCounter, Is.EqualTo(2),"Duplicate subscription failure report leaded to double resubscription");
+                Assert.That(subscriptionsCounter, Is.EqualTo(2), "Duplicate subscription failure report leaded to double resubscription");
             }
         }
 
@@ -376,9 +362,9 @@ namespace Lykke.Messaging.Tests
                 //First attempt fails next one happends in 1000ms and should be successfull
                 Assert.True(eventRes, "Has not resubscribed after first subscription fail");
                 callback(
-                    new BinaryMessage {Bytes = new byte[0], Type = typeof (string).Name},
+                    new BinaryMessage { Bytes = new byte[0], Type = typeof(string).Name },
                     b => { });
-                    Thread.Sleep(300);
+                Thread.Sleep(300);
 
                 emulateFail();
 
@@ -417,11 +403,11 @@ namespace Lykke.Messaging.Tests
                 Stopwatch sw = Stopwatch.StartNew();
                 processingGroupManager.Subscribe(new Endpoint("test", "test", false, SerializationFormat.Json), (message, acknowledge) =>
                     {
-                        Thread.Sleep(rnd.Next(1,10));
+                        Thread.Sleep(rnd.Next(1, 10));
                         acknowledge(delay.Key, true);
                     }, null, "ProcessingGroup", 0);
                 for (int i = 0; i < messageCount; i++)
-                    callback(new BinaryMessage {Bytes = new byte[0], Type = typeof (string).Name}, b =>
+                    callback(new BinaryMessage { Bytes = new byte[0], Type = typeof(string).Name }, b =>
                         {
                             if (Interlocked.Decrement(ref counter) == 0)
                                 complete.Set();
@@ -454,7 +440,6 @@ namespace Lykke.Messaging.Tests
                 .Callback<Endpoint, string, Action>((endpoint, name, invocation) => setOnFail(invocation))
                 .Returns(session.Object);
             return new ProcessingGroupManager(
-                _logFactory,
                 transportManager.Object,
                 new Dictionary<string, ProcessingGroupInfo>
                 {

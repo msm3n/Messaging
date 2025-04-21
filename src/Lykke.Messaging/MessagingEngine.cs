@@ -5,9 +5,8 @@ using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Threading;
-using Common.Log;
 using JetBrains.Annotations;
-using Lykke.Common.Log;
+using Microsoft.Extensions.Logging;
 using Lykke.Core.Utils;
 using Lykke.Messaging.Contract;
 using Lykke.Messaging.Serialization;
@@ -16,12 +15,13 @@ using Lykke.Messaging.Transports;
 namespace Lykke.Messaging
 {
     [PublicAPI]
-    public class MessagingEngine : IMessagingEngine
+    public class MessagingEngine : IMessagingEngine, IDisposable
     {
         private const int DEFAULT_UNACK_DELAY = 60000;
         private const int MESSAGE_DEFAULT_LIFESPAN = 0; // forever // 1800000; // milliseconds (30 minutes)
 
-        private readonly ILog _log;
+        private static readonly ILogger<MessagingEngine> _logger = Log.For<MessagingEngine>();
+
         private readonly ManualResetEvent m_Disposing = new ManualResetEvent(false);
         private readonly CountingTracker m_RequestsTracker = new CountingTracker();
         private readonly ISerializationManager m_SerializationManager;
@@ -32,71 +32,35 @@ namespace Lykke.Messaging
         private readonly Dictionary<RequestHandle, Action<Exception>> m_ActualRequests = new Dictionary<RequestHandle, Action<Exception>>();
         private readonly ProcessingGroupManager m_ProcessingGroupManager;
 
-        [Obsolete]
         public MessagingEngine(
-            ILog log,
             ITransportResolver transportResolver,
             IDictionary<string, ProcessingGroupInfo> processingGroups = null,
             params ITransportFactory[] transportFactories)
         {
             if (transportResolver == null)
                 throw new ArgumentNullException(nameof(transportResolver));
-            _log = log;
-            m_TransportManager = new TransportManager(log, transportResolver, transportFactories);
-            m_ProcessingGroupManager = new ProcessingGroupManager(log, m_TransportManager,processingGroups);
-            m_SerializationManager = new SerializationManager(log);
+            m_TransportManager = new TransportManager(transportResolver, transportFactories);
+            m_ProcessingGroupManager = new ProcessingGroupManager(m_TransportManager, processingGroups);
+            m_SerializationManager = new SerializationManager();
             m_RequestTimeoutManager = new SchedulingBackgroundWorker("RequestTimeoutManager", () => StopTimeoutedRequests());
             CreateMessagingHandle(() => StopTimeoutedRequests(true));
         }
 
+
         public MessagingEngine(
-            ILogFactory logFactory,
-            ITransportResolver transportResolver,
-            IDictionary<string, ProcessingGroupInfo> processingGroups = null,
-            params ITransportFactory[] transportFactories)
-        {
-            if (logFactory == null)
-            {
-                throw new ArgumentNullException(nameof(logFactory));
-            }
-            if (transportResolver == null)
-            {
-                throw new ArgumentNullException(nameof(transportResolver));
-            }
-
-            _log = logFactory.CreateLog(this);
-
-            m_TransportManager = new TransportManager(logFactory, transportResolver, transportFactories);
-            m_ProcessingGroupManager = new ProcessingGroupManager(logFactory, m_TransportManager, processingGroups);
-            m_SerializationManager = new SerializationManager(logFactory);
-            m_RequestTimeoutManager = new SchedulingBackgroundWorker("RequestTimeoutManager", () => StopTimeoutedRequests());
-
-            CreateMessagingHandle(() => StopTimeoutedRequests(true));
-        }
-
-        [Obsolete]
-        public MessagingEngine(
-            ILog log,
             ITransportResolver transportResolver,
             params ITransportFactory[] transportFactories)
-            : this(log, transportResolver,null, transportFactories)
+            : this(transportResolver, null, transportFactories)
         {
         }
 
-        public MessagingEngine(
-            ILogFactory logFactory,
-            ITransportResolver transportResolver,
-            params ITransportFactory[] transportFactories)
-            : this(logFactory, transportResolver, null, transportFactories)
+        public int ResubscriptionTimeout
         {
-        }
-
-        public int ResubscriptionTimeout { 
             get => m_ProcessingGroupManager.ResubscriptionTimeout;
             set => m_ProcessingGroupManager.ResubscriptionTimeout = value;
         }
 
-        public void AddProcessingGroup(string name,ProcessingGroupInfo info)
+        public void AddProcessingGroup(string name, ProcessingGroupInfo info)
         {
             m_ProcessingGroupManager.AddProcessingGroup(name, info);
         }
@@ -159,7 +123,7 @@ namespace Lykke.Messaging
         public Destination CreateTemporaryDestination(string transportId, string processingGroup)
         {
             return m_TransportManager
-                .GetMessagingSession(new Endpoint{TransportId = transportId}, processingGroup ?? "default")
+                .GetMessagingSession(new Endpoint { TransportId = transportId }, processingGroup ?? "default")
                 .CreateTemporaryDestination();
         }
 
@@ -173,7 +137,7 @@ namespace Lykke.Messaging
                     }
                     catch (Exception ex)
                     {
-                        _log.WriteError(nameof(SubscribeOnTransportEvents), "Transport events handler failed", ex);
+                        _logger.LogError(ex, "Transport events handler failed");
                     }
                 };
             m_TransportManager.TransportEvents += safeHandler;
@@ -190,13 +154,13 @@ namespace Lykke.Messaging
                 message,
                 endpoint,
                 MESSAGE_DEFAULT_LIFESPAN,
-                processingGroup,headers);
+                processingGroup, headers);
         }
 
         private static string GetProcessingGroup(Endpoint endpoint, string processingGroup)
         {
             //by default on processing group per destination
-            return  processingGroup ?? endpoint.Destination.ToString();
+            return processingGroup ?? endpoint.Destination.ToString();
         }
 
         public void Send<TMessage>(
@@ -231,7 +195,7 @@ namespace Lykke.Messaging
             var bytes = m_SerializationManager.SerializeObject(endpoint.SerializationFormat, message);
             var serializedMessage = new BinaryMessage
             {
-                Bytes = bytes, 
+                Bytes = bytes,
                 Type = type,
             };
             if (headers != null)
@@ -270,22 +234,22 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteError(nameof(Send), $"Failed to send message. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}", e);
+                    _logger.LogError(e, "Failed to send message. Transport: {TransportId}, Queue: {Destination}", endpoint.TransportId, endpoint.Destination);
                     throw;
                 }
             }
         }
 
-		public IDisposable Subscribe<TMessage>(Endpoint endpoint, Action<TMessage> callback)
-		{
+        public IDisposable Subscribe<TMessage>(Endpoint endpoint, Action<TMessage> callback)
+        {
             return Subscribe(
                 endpoint,
                 (TMessage message, AcknowledgeDelegate acknowledge, Dictionary<string, string> headers) =>
-		            {
-		                callback(message);
-		                acknowledge(0,true);
-		            });
-		}
+                    {
+                        callback(message);
+                        acknowledge(0, true);
+                    });
+        }
 
         public IDisposable Subscribe<TMessage>(
             Endpoint endpoint,
@@ -293,7 +257,7 @@ namespace Lykke.Messaging
             string processingGroup = null,
             int priority = 0)
         {
-			if (endpoint.Destination == null) throw new ArgumentException("Destination can not be null");
+            if (endpoint.Destination == null) throw new ArgumentException("Destination can not be null");
             if (m_Disposing.WaitOne(0))
                 throw new InvalidOperationException("Engine is disposing");
 
@@ -316,7 +280,7 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteError(nameof(Subscribe), $"Failed to subscribe. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}", e);
+                    _logger.LogError(e, "Failed to subscribe. Transport: {TransportId}, Queue: {Destination}", endpoint.TransportId, endpoint.Destination);
                     throw;
                 }
             }
@@ -347,7 +311,7 @@ namespace Lykke.Messaging
         {
             return Subscribe(
                 endpoint,
-                (message, acknowledge,headers) =>
+                (message, acknowledge, headers) =>
                     {
                         callback(message);
                         acknowledge(0, true);
@@ -368,7 +332,7 @@ namespace Lykke.Messaging
             Action<string, AcknowledgeDelegate> unknownTypeCallback,
             params Type[] knownTypes)
         {
-            return Subscribe(endpoint, callback, unknownTypeCallback, null,0, knownTypes);
+            return Subscribe(endpoint, callback, unknownTypeCallback, null, 0, knownTypes);
         }
 
         public IDisposable Subscribe(
@@ -402,17 +366,17 @@ namespace Lykke.Messaging
                                     }
                                     catch (Exception e)
                                     {
-                                        _log.WriteError(
-                                            nameof(Subscribe),
-                                            $"Failed to handle message of unknown type. Transport: {endpoint.TransportId}, Queue {endpoint.Destination}, Message Type: {m.Type}",
-                                            e);
+                                        _logger.LogError(
+                                            e,
+                                            "Failed to handle message of unknown type. Transport: {TransportId}, Queue {Destination}, Message Type: {MessageType}",
+                                            endpoint.TransportId, endpoint.Destination, m.Type);
                                     }
                                     return;
                                 }
                                 ProcessMessage(
                                     m,
                                     messageType,
-                                    (message,headers) => callback(message, ack,headers),
+                                    (message, headers) => callback(message, ack, headers),
                                     ack,
                                     endpoint);
                             },
@@ -422,7 +386,7 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteError(nameof(Subscribe), $"Failed to subscribe. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}", e);
+                    _logger.LogError(e, "Failed to subscribe. Transport: {TransportId}, Queue: {Destination}", endpoint.TransportId, endpoint.Destination);
                     throw;
                 }
             }
@@ -440,7 +404,7 @@ namespace Lykke.Messaging
                 TResponse response = default(TResponse);
                 Exception exception = null;
 
-				using (SendRequestAsync<TRequest, TResponse>(
+                using (SendRequestAsync<TRequest, TResponse>(
                     request,
                     endpoint,
                     r =>
@@ -455,18 +419,18 @@ namespace Lykke.Messaging
                         },
                     timeout))
                 {
-                    int waitResult = WaitHandle.WaitAny(new WaitHandle[] {m_Disposing, responseReceived});
+                    int waitResult = WaitHandle.WaitAny(new WaitHandle[] { m_Disposing, responseReceived });
                     switch (waitResult)
                     {
                         case 1:
                             if (exception == null)
                                 return response;
-                            if(exception is TimeoutException)
+                            if (exception is TimeoutException)
                                 throw exception;//StackTrace is replaced bat it is ok here.
                             throw new ProcessingException("Failed to process response", exception);
                         case 0:
                             throw new ProcessingException("Request was canceled due to engine dispose", exception);
- 
+
                         default:
                             throw new InvalidOperationException();
                     }
@@ -474,7 +438,7 @@ namespace Lykke.Messaging
             }
         }
 
-        private void StopTimeoutedRequests(bool stopAll=false)
+        private void StopTimeoutedRequests(bool stopAll = false)
         {
             lock (m_ActualRequests)
             {
@@ -487,7 +451,7 @@ namespace Lykke.Messaging
                     r.Key.Dispose();
                     if (!r.Key.IsComplete)
                     {
-                        r.Value(new TimeoutException("Request has timed out")); 
+                        r.Value(new TimeoutException("Request has timed out"));
                     }
                     m_ActualRequests.Remove(r.Key);
                 });
@@ -540,28 +504,28 @@ namespace Lykke.Messaging
                 }
                 catch (Exception e)
                 {
-                    _log.WriteError(nameof(SendRequestAsync), $"Failed to register handler. Transport: {endpoint.TransportId}, Destination: {endpoint.Destination}", e);
+                    _logger.LogError(e, "Failed to register handler. Transport: {TransportId}, Destination: {Destination}", endpoint.TransportId, endpoint.Destination);
                     throw;
                 }
             }
         }
 
         public IDisposable RegisterHandler<TRequest, TResponse>(Func<TRequest, TResponse> handler, Endpoint endpoint)
-			where TResponse : class
-		{
-			var handle = new SerialDisposable();
+            where TResponse : class
+        {
+            var handle = new SerialDisposable();
             IDisposable transportWatcher = SubscribeOnTransportEvents(
                 (transportId, @event) =>
-			    {
-			        if (transportId == endpoint.TransportId || @event != TransportEvents.Failure)
-			            return;
-			        RegisterHandlerWithRetry(handler, endpoint, handle);
-			    });
+                {
+                    if (transportId == endpoint.TransportId || @event != TransportEvents.Failure)
+                        return;
+                    RegisterHandlerWithRetry(handler, endpoint, handle);
+                });
 
-			RegisterHandlerWithRetry(handler, endpoint, handle);
+            RegisterHandlerWithRetry(handler, endpoint, handle);
 
-			return new CompositeDisposable(transportWatcher, handle);
-		}
+            return new CompositeDisposable(transportWatcher, handle);
+        }
 
         public void Dispose()
         {
@@ -592,20 +556,19 @@ namespace Lykke.Messaging
                 }
                 catch
                 {
-                    _log.WriteInfo(
-                        nameof(MessagingEngine),
-                        nameof(RegisterHandlerWithRetry),
-                        $"Scheduling register handler attempt in 1 minute. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}");
+                    _logger.LogInformation(
+                        "Scheduling register handler attempt in 1 minute. Transport: {TransportId}, Queue: {Destination}",
+                        endpoint.TransportId, endpoint.Destination);
 
-                	handle.Disposable = Scheduler.Default.Schedule(
+                    handle.Disposable = Scheduler.Default.Schedule(
                         DateTimeOffset.Now.AddMinutes(1),
-                	    () =>
-                	    {
-                	        lock (handle)
-                	        {
-                	            RegisterHandlerWithRetry(handler, endpoint, handle);
-                	        }
-                	    });
+                        () =>
+                        {
+                            lock (handle)
+                            {
+                                RegisterHandlerWithRetry(handler, endpoint, handle);
+                            }
+                        });
                 }
             }
         }
@@ -624,72 +587,70 @@ namespace Lykke.Messaging
                     var session = m_TransportManager.GetMessagingSession(endpoint, GetProcessingGroup(endpoint, processingGroup));
                     var subscription = session.RegisterHandler(
                         endpoint.Destination.Subscribe,
-                	    requestMessage =>
-                	    {
-                            var message = m_SerializationManager.Deserialize<TRequest>(endpoint.SerializationFormat, requestMessage.Bytes); 
-                	        TResponse response = handler(message);
-                	        return SerializeMessage(endpoint.SerializationFormat,response);
-                	    },
-                	    endpoint.SharedDestination ? GetMessageType(typeof (TRequest)) : null
-                		);
-                	var messagingHandle = CreateMessagingHandle(() =>
-                	    {
-                	        try
-                	        {
-                	            subscription.Dispose();
-                	            Disposable.Create(() => _log.WriteInfo(
-                                    nameof(MessagingEngine),
-                                    "Destroy",
-                                    $"Handler was unregistered. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}"));
-                	        }
-                	        catch (Exception e)
-			            {
-			                _log.WriteError(
-			                    "Destroy",
-			                    $"Failed to unregister handler. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}",
-			                    e);
-                	        }
-                	    });
+                        requestMessage =>
+                        {
+                            var message = m_SerializationManager.Deserialize<TRequest>(endpoint.SerializationFormat, requestMessage.Bytes);
+                            TResponse response = handler(message);
+                            return SerializeMessage(endpoint.SerializationFormat, response);
+                        },
+                        endpoint.SharedDestination ? GetMessageType(typeof(TRequest)) : null
+                        );
+                    var messagingHandle = CreateMessagingHandle(() =>
+                        {
+                            try
+                            {
+                                subscription.Dispose();
+                                Disposable.Create(() => _logger.LogInformation(
+                                    "Handler was unregistered. Transport: {TransportId}, Queue: {Destination}",
+                                    endpoint.TransportId, endpoint.Destination));
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.LogError(
+                                    e,
+                                    "Failed to unregister handler. Transport: {TransportId}, Queue: {Destination}",
+                                    endpoint.TransportId, endpoint.Destination);
+                            }
+                        });
 
-                    _log.WriteInfo(
-                        nameof(MessagingEngine),
-                        nameof(RegisterHandler),
-                        $"Handler was successfully registered. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}");
+                    _logger.LogInformation(
+                        "Handler was successfully registered. Transport: {TransportId}, Queue: {Destination}",
+                        endpoint.TransportId, endpoint.Destination);
 
                     return messagingHandle;
                 }
                 catch (Exception e)
                 {
-                    _log.WriteError(
-                        nameof(RegisterHandler),
-                        $"Failed to register handler. Transport: {endpoint.TransportId}, Queue: {endpoint.Destination}",
-                        e);
+                    _logger.LogError(
+                        e,
+                        "Failed to register handler. Transport: {TransportId}, Queue: {Destination}",
+                        endpoint.TransportId, endpoint.Destination);
                     throw;
                 }
             }
         }
 
-        private BinaryMessage SerializeMessage<TMessage>(SerializationFormat format,TMessage message)
+        private BinaryMessage SerializeMessage<TMessage>(SerializationFormat format, TMessage message)
         {
             var type = GetMessageType(typeof(TMessage));
             var bytes = m_SerializationManager.Serialize(format, message);
-            return new BinaryMessage{ Bytes = bytes, Type = type };
+            return new BinaryMessage { Bytes = bytes, Type = type };
         }
 
         private string GetMessageType(Type type)
         {
-        	return m_MessageTypeMapping.GetOrAdd(
+            return m_MessageTypeMapping.GetOrAdd(
                 type,
                 clrType =>
-        	        {
+                    {
                         //TODO: type should be determined by serializer
-        	            var typeName = clrType.GetCustomAttributes(false)
-        	                .Select(a => a as ProtoBuf.ProtoContractAttribute)
-        	                .Where(a => a != null)
-        	                .Select(a => a.Name)
-        	                .FirstOrDefault();
-        	            return typeName ?? clrType.Name;
-        	        });
+                        var typeName = clrType.GetCustomAttributes(false)
+                            .Select(a => a as ProtoBuf.ProtoContractAttribute)
+                            .Where(a => a != null)
+                            .Select(a => a.Name)
+                            .FirstOrDefault();
+                        return typeName ?? clrType.Name;
+                    });
         }
 
         private IDisposable Subscribe(
@@ -703,16 +664,15 @@ namespace Lykke.Messaging
                 endpoint,
                 callback,
                 messageType,
-                GetProcessingGroup(endpoint,processingGroup),
+                GetProcessingGroup(endpoint, processingGroup),
                 priority);
 
             return CreateMessagingHandle(() =>
             {
                 subscription.Dispose();
-                _log.WriteInfo(
-                    nameof(MessagingEngine),
-                    nameof(Subscribe),
-                    $"Unsubscribed from endpoint {endpoint}");
+                _logger.LogInformation(
+                    "Unsubscribed from endpoint {Endpoint}",
+                    endpoint);
             });
         }
 
@@ -725,9 +685,9 @@ namespace Lykke.Messaging
                     destroy();
                     lock (m_MessagingHandles)
                     {
-// ReSharper disable AccessToModifiedClosure
+                        // ReSharper disable AccessToModifiedClosure
                         m_MessagingHandles.Remove(handle);
-// ReSharper restore AccessToModifiedClosure
+                        // ReSharper restore AccessToModifiedClosure
                     }
                 });
             lock (m_MessagingHandles)
@@ -751,10 +711,10 @@ namespace Lykke.Messaging
             }
             catch (Exception e)
             {
-                _log.WriteError(
-                    nameof(ProcessMessage),
-                    $"Failed to deserialize message. Transport: {endpoint.TransportId}, Destination: {endpoint.Destination}, Message Type: {type.Name}",
-                    e);
+                _logger.LogError(
+                    e,
+                    "Failed to deserialize message. Transport: {TransportId}, Destination: {Destination}, Message Type: {MessageType}",
+                    endpoint.TransportId, endpoint.Destination, type.Name);
 
                 ack(DEFAULT_UNACK_DELAY, false);
 
@@ -767,10 +727,10 @@ namespace Lykke.Messaging
             }
             catch (Exception e)
             {
-                _log.WriteError(
-                    nameof(ProcessMessage),
-                    $"Failed to handle message. Transport: {endpoint.TransportId}, Destination: {endpoint.Destination}, Message Type: {type.Name}",
-                    e);
+                _logger.LogError(
+                    e,
+                    "Failed to handle message. Transport: {TransportId}, Destination: {Destination}, Message Type: {MessageType}",
+                    endpoint.TransportId, endpoint.Destination, type.Name);
 
                 ack(DEFAULT_UNACK_DELAY, false);
             }

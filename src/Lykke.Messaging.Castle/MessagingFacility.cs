@@ -20,8 +20,8 @@ namespace Lykke.Messaging.Castle
         private readonly List<IHandler> m_MessageHandlerWaitList = new List<IHandler>();
         private readonly List<Action<IKernel>> m_InitPreSteps = new List<Action<IKernel>>();
         private readonly List<Action<IKernel>> m_InitPostSteps = new List<Action<IKernel>>();
-        private readonly List<ITransportFactory> m_TransportFactories=new List<ITransportFactory>();
-        private readonly MessagingConfiguration m_DefaultMessagingConfiguration=new MessagingConfiguration();
+        private readonly List<ITransportFactory> m_TransportFactories = new List<ITransportFactory>();
+        private readonly MessagingConfiguration m_DefaultMessagingConfiguration = new MessagingConfiguration();
         private IMessagingEngine m_MessagingEngine;
         private bool m_IsExplicitConfigurationProvided = false;
         private IEndpointProvider m_EndpointProvider;
@@ -83,11 +83,11 @@ namespace Lykke.Messaging.Castle
         public MessagingFacility WithConfigurationFromContainer()
         {
             m_IsExplicitConfigurationProvided = true;
-            AddInitStep(kernel => WithConfiguration(kernel.Resolve<IMessagingConfiguration>()) );
+            AddInitStep(kernel => WithConfiguration(kernel.Resolve<IMessagingConfiguration>()));
             return this;
         }
 
-        public MessagingFacility VerifyEndpoints(EndpointUsage usage,bool configureIfRequired,params string[] endpoints)
+        public MessagingFacility VerifyEndpoints(EndpointUsage usage, bool configureIfRequired, params string[] endpoints)
         {
             AddPostInitStep(kernel =>
                 endpoints.Select(ep => m_EndpointProvider.Get(ep)).ToList().ForEach(endpoint =>
@@ -122,7 +122,7 @@ namespace Lykke.Messaging.Castle
                 initStep(Kernel);
             }
 
-            if (Kernel.HasComponent(typeof (IEndpointProvider)))
+            if (Kernel.HasComponent(typeof(IEndpointProvider)))
                 throw new Exception("IEndpointProvider already registered in container, can not register IEndpointProvider from MessagingConfiguration");
 
             Kernel.Register(
@@ -135,7 +135,7 @@ namespace Lykke.Messaging.Castle
             m_EndpointProvider = Kernel.Resolve<IEndpointProvider>("EndpointResolver");
             Kernel.Resolver.AddSubResolver(subDependencyResolver);
 
-            m_MessagingEngine = new MessagingEngine(new LogToConsole(), 
+            m_MessagingEngine = new MessagingEngine(
                 new TransportResolver(MessagingConfiguration.GetTransports() ?? new Dictionary<string, TransportInfo>(), m_JailStrategies),
                 MessagingConfiguration.GetProcessingGroups(),
                 m_TransportFactories.ToArray());
@@ -176,7 +176,7 @@ namespace Lykke.Messaging.Castle
             m_MessagingEngine.SerializationManager.RegisterSerializerFactory(factory as ISerializerFactory);
             return true;
         }
- 
+
         private void ProcessWaitList()
         {
             foreach (var handler in m_MessageHandlerWaitList.ToArray())
@@ -187,7 +187,7 @@ namespace Lykke.Messaging.Castle
 
             foreach (var factoryHandler in m_SerializerFactoryWaitList.ToArray())
             {
-                if(TryRegisterSerializerFactory(factoryHandler))
+                if (TryRegisterSerializerFactory(factoryHandler))
                     m_SerializerFactoryWaitList.Remove(factoryHandler);
             }
         }

@@ -1,40 +1,26 @@
 ﻿using System;
 using RabbitMQ.Client;
-using Common.Log;
-using Lykke.Common.Log;
+using Microsoft.Extensions.Logging;
 
 namespace Lykke.Messaging.RabbitMq
 {
+    public delegate void MessageCallback(
+        IBasicProperties properties,
+        byte[] body,
+        Action<bool> ack);
+
     internal class Consumer : DefaultBasicConsumer, IDisposable
     {
-        private readonly ILog _log;
-        private readonly Action<IBasicProperties, byte[], Action<bool>> m_Callback;
-
-        [Obsolete]
-        public Consumer(
-            ILog log,
-            IModel model,
-            Action<IBasicProperties, byte[], Action<bool>> callback)
-            : base(model)
-        {
-            _log = log;
-            m_Callback = callback ?? throw new ArgumentNullException("callback");
-        }
+        private static readonly ILogger<Consumer> _logger = Log.For<Consumer>();
+        private readonly MessageCallback _callback;
+        private bool _disposed;
 
         public Consumer(
-            ILogFactory logFactory,
             IModel model,
-            Action<IBasicProperties, byte[], Action<bool>> callback)
-            
+            MessageCallback callback)
             : base(model)
         {
-            if (logFactory == null)
-            {
-                throw new ArgumentNullException(nameof(logFactory));
-            }
-
-            _log = logFactory.CreateLog(this);
-            m_Callback = callback ?? throw new ArgumentNullException(nameof(callback));
+            _callback = callback ?? throw new ArgumentNullException(nameof(callback));
         }
 
         public override void HandleBasicDeliver(
@@ -48,36 +34,38 @@ namespace Lykke.Messaging.RabbitMq
         {
             try
             {
-                m_Callback(properties, body, ack =>
+                _callback(properties, body, ack =>
                 {
-                    if (ack)
-                        Model.BasicAck(deliveryTag, false);
-                    else
-                        Model.BasicNack(deliveryTag, false, true);
+                    if (ack) Model.BasicAck(deliveryTag, false);
+                    else Model.BasicNack(deliveryTag, false, true);
                 });
             }
             catch (Exception e)
             {
-                _log.WriteError(nameof(Consumer), nameof(HandleBasicDeliver), e);
+                _logger.LogError(e,
+                    "Error processing message. DeliveryTag={DeliveryTag}, RoutingKey={RoutingKey}",
+                    deliveryTag, routingKey);
+                Model.BasicNack(deliveryTag, false, true);
             }
         }
 
         public void Dispose()
         {
+            if (_disposed) return;
             lock (Model)
             {
                 if (Model.IsOpen)
                 {
-                    try
-                    {
-                        Model.BasicCancel(ConsumerTag);
-                    }
+                    try { Model.BasicCancel(ConsumerTag); }
                     catch (Exception e)
                     {
-                        _log.WriteError(nameof(Consumer), nameof(Dispose), e);
+                        _logger.LogError(e,
+                            "Error cancelling consumer. ConsumerTag={ConsumerTag}",
+                            ConsumerTag);
                     }
                 }
             }
+            _disposed = true;
         }
     }
 }
