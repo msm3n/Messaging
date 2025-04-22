@@ -9,7 +9,7 @@ using Lykke.Messaging.Utils;
 
 namespace Lykke.Messaging
 {
-    internal class ResolvedTransport : IDisposable
+    public class ResolvedTransport : IDisposable
     {
         private static readonly ILogger<ResolvedTransport> _logger = Log.For<ResolvedTransport>();
 

@@ -45,6 +45,7 @@ namespace Lykke.Messaging.RabbitMq
                 _logger.LogError(e,
                     "Error processing message. DeliveryTag={DeliveryTag}, RoutingKey={RoutingKey}",
                     deliveryTag, routingKey);
+
                 Model.BasicNack(deliveryTag, false, true);
             }
         }

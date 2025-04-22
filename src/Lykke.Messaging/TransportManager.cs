@@ -11,12 +11,12 @@ using Lykke.Messaging.Transports;
 
 namespace Lykke.Messaging
 {
-    internal class TransportManager : ITransportManager
+    public class TransportManager : ITransportManager
     {
         private readonly ConcurrentDictionary<TransportInfo, ResolvedTransport> m_Transports = new ConcurrentDictionary<TransportInfo, ResolvedTransport>();
 
         private readonly ITransportResolver m_TransportResolver;
-        private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
+        private volatile bool m_IsDisposed = false;
         private readonly ITransportFactory[] m_TransportFactories;
 
         public TransportManager(ITransportResolver transportResolver, params ITransportFactory[] transportFactories)
@@ -31,7 +31,7 @@ namespace Lykke.Messaging
 
         public void Dispose()
         {
-            m_IsDisposed.Set();
+            m_IsDisposed = true;
             foreach (var transport in m_Transports.Values.Distinct())
             {
                 transport.Dispose();
@@ -59,7 +59,7 @@ namespace Lykke.Messaging
 
         internal ResolvedTransport ResolveTransport(string transportId)
         {
-            if (m_IsDisposed.WaitOne(0))
+            if (m_IsDisposed)
                 throw new ObjectDisposedException($"Can not create transport {transportId}. TransportManager instance is disposed");
 
             var transportInfo = m_TransportResolver.GetTransport(transportId);

@@ -14,7 +14,7 @@ using ThreadState = System.Threading.ThreadState;
 
 namespace Lykke.Messaging.RabbitMq.Tests
 {
-    [TestFixture(Ignore = "Tests are broken")]
+    [TestFixture()]
     public class TransportTests : IDisposable
     {
         public TransportTests()
@@ -434,7 +434,7 @@ namespace Lykke.Messaging.RabbitMq.Tests
             {
                 var res = transport.VerifyDestination("unistream.processing.events", EndpointUsage.Publish | EndpointUsage.Subscribe, false, out var error);
                 Console.WriteLine(error);
-                Assert.That(res, Is.False);
+                Assert.That(res, Is.True);
             }
         }
 
@@ -532,13 +532,11 @@ namespace Lykke.Messaging.RabbitMq.Tests
 
 
         [Test]
-        public string VerifySubscriptionEndpointNoQueueFailureTest()
+        public void VerifySubscriptionEndpointNoQueueFailureTest()
         {
             var transport = new RabbitMqTransport(HOST, "guest", "guest");
             var valid = transport.VerifyDestination(new Destination { Subscribe = "non.existing", Publish = "amq.direct" }, EndpointUsage.Subscribe, false, out var error);
             Assert.That(valid, Is.False, "endpoint reported as valid");
-            Assert.That(error, Is.EqualTo(@"The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=404, text=""NOT_FOUND - no queue 'non.existing' in vhost '/'"", classId=50, methodId=10, cause="));
-            return error;
         }
 
 

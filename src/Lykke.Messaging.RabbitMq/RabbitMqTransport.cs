@@ -11,7 +11,7 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Lykke.Messaging.RabbitMq
 {
-    internal class RabbitMqTransport : ITransport
+    public class RabbitMqTransport : ITransport
     {
         private static readonly ILogger<RabbitMqTransport> _logger = Log.For<RabbitMqTransport>();
 
@@ -19,7 +19,7 @@ namespace Lykke.Messaging.RabbitMq
         private readonly TimeSpan? m_NetworkRecoveryInterval;
         private readonly ConnectionFactory[] m_Factories;
         private readonly List<RabbitMqSession> m_Sessions = new List<RabbitMqSession>();
-        private readonly ManualResetEvent m_IsDisposed = new ManualResetEvent(false);
+        private volatile bool m_IsDisposed = false;
         private readonly string _appName = PlatformServices.Default.Application.ApplicationName;
         private readonly string _appVersion = PlatformServices.Default.Application.ApplicationVersion;
 
@@ -104,7 +104,7 @@ namespace Lykke.Messaging.RabbitMq
 
         public void Dispose()
         {
-            m_IsDisposed.Set();
+            m_IsDisposed = true;
             RabbitMqSession[] sessions;
             lock (m_Sessions)
             {
@@ -118,7 +118,7 @@ namespace Lykke.Messaging.RabbitMq
 
         public IMessagingSession CreateSession(Action onFailure, bool confirmedSending, Destination destination = default)
         {
-            if (m_IsDisposed.WaitOne(0))
+            if (m_IsDisposed)
                 throw new ObjectDisposedException("Transport is disposed");
 
             var connection = CreateConnection(true, destination);

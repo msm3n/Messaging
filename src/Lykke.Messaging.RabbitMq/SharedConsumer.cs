@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using RabbitMQ.Client;
@@ -11,8 +11,8 @@ namespace Lykke.Messaging.RabbitMq
     {
         private static readonly ILogger<SharedConsumer> _log = Log.For<SharedConsumer>();
 
-        private readonly Dictionary<string, MessageCallback> m_Callbacks
-            = new Dictionary<string, MessageCallback>();
+        private readonly ConcurrentDictionary<string, MessageCallback> m_Callbacks
+            = new ConcurrentDictionary<string, MessageCallback>();
         private readonly AutoResetEvent m_CallBackAdded = new AutoResetEvent(false);
         private readonly ManualResetEvent m_Stop = new ManualResetEvent(false);
 
@@ -22,26 +22,19 @@ namespace Lykke.Messaging.RabbitMq
 
         public void AddCallback(MessageCallback callback, string messageType)
         {
-            if (callback == null) throw new ArgumentNullException("callback");
-            if (string.IsNullOrEmpty(messageType)) throw new ArgumentNullException("messageType");
-            lock (m_Callbacks)
-            {
-                if (m_Callbacks.ContainsKey(messageType))
-                    throw new InvalidOperationException("Attempt to subscribe for same destination twice.");
-                m_Callbacks[messageType] = callback;
-                m_CallBackAdded.Set();
-            }
+            if (callback == null) throw new ArgumentNullException(nameof(callback));
+            if (string.IsNullOrEmpty(messageType)) throw new ArgumentNullException(nameof(messageType));
+            if (!m_Callbacks.TryAdd(messageType, callback))
+                throw new InvalidOperationException("Attempt to subscribe for same destination twice.");
+            m_CallBackAdded.Set();
         }
 
         public bool RemoveCallback(string messageType)
         {
-            lock (m_Callbacks)
-            {
-                if (!m_Callbacks.Remove(messageType))
-                    throw new InvalidOperationException("Unsubscribe from not subscribed message type");
-                if (m_Callbacks.Any())
-                    return true;
-            }
+            if (!m_Callbacks.TryRemove(messageType, out _))
+                throw new InvalidOperationException("Unsubscribe from not subscribed message type");
+            if (!m_Callbacks.IsEmpty)
+                return true;
             Stop();
             return false;
         }
@@ -58,25 +51,22 @@ namespace Lykke.Messaging.RabbitMq
             bool waitForCallback = true;
             while (true)
             {
-                MessageCallback callback;
-                lock (m_Callbacks)
-                {
-                    if (waitForCallback)
-                        m_CallBackAdded.Reset();
-                    m_Callbacks.TryGetValue(properties.Type, out callback);
-                }
+                if (waitForCallback)
+                    m_CallBackAdded.Reset();
+                m_Callbacks.TryGetValue(properties.Type, out var callback);
+
                 if (callback != null)
                 {
                     try
                     {
                         callback(properties, body, ack =>
-                            {
-                                if (ack)
-                                    Model.BasicAck(deliveryTag, false);
-                                else
-                                    //TODO: allow callback to decide whether to redeliver
-                                    Model.BasicNack(deliveryTag, false, true);
-                            });
+                        {
+                            if (ack)
+                                Model.BasicAck(deliveryTag, false);
+                            else
+                                //TODO: allow callback to decide whether to redeliver
+                                Model.BasicNack(deliveryTag, false, true);
+                        });
                     }
                     catch (Exception e)
                     {

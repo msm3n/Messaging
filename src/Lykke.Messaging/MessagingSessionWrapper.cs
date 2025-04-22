@@ -5,7 +5,7 @@ using Lykke.Messaging.Transports;
 
 namespace Lykke.Messaging
 {
-    internal class MessagingSessionWrapper : IMessagingSession
+    public class MessagingSessionWrapper : IMessagingSession
     {
         private static readonly ILogger<MessagingSessionWrapper> _logger = Log.For<MessagingSessionWrapper>();
 

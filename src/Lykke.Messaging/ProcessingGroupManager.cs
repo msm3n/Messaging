@@ -12,7 +12,7 @@ using Lykke.Messaging.Utils;
 
 namespace Lykke.Messaging
 {
-    internal class ProcessingGroupManager : IDisposable
+    public class ProcessingGroupManager : IDisposable
     {
         private readonly ITransportManager m_TransportManager;
         private static readonly ILogger<ProcessingGroupManager> _logger = Log.For<ProcessingGroupManager>();
